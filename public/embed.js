@@ -11,6 +11,7 @@
   const embedScriptElement = findEmbedScript();
   const clientId = embedScriptElement?.dataset?.clientId || '';
   const embedToken = embedScriptElement?.dataset?.embedToken || '';
+  const siteUrl = window.location.origin;
 
   function getScriptOrigin() {
     if (embedScriptElement && embedScriptElement.src) {
@@ -45,13 +46,14 @@
       }
 
       .launcher {
-        min-height: 44px;
+        width: 56px;
+        height: 56px;
         border: 0;
-        border-radius: 8px;
-        padding: 12px 16px;
+        border-radius: 999px;
+        padding: 0;
         background: #147c72;
         color: #ffffff;
-        font: 700 14px/1.2 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        font: 700 26px/1 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
         box-shadow: 0 12px 32px rgba(0, 0, 0, 0.22);
         cursor: pointer;
       }
@@ -98,6 +100,7 @@
     const params = new URLSearchParams({ embed: '1' });
     if (clientId) params.set('clientId', clientId);
     if (embedToken) params.set('embedToken', embedToken);
+    if (siteUrl) params.set('siteUrl', siteUrl);
     frame.src = `${origin}/?${params.toString()}`;
     frame.loading = 'lazy';
     frame.allow = 'clipboard-write';
@@ -105,12 +108,16 @@
     const launcher = document.createElement('button');
     launcher.className = 'launcher';
     launcher.type = 'button';
-    launcher.textContent = 'Chat Assistant';
+    launcher.textContent = '🌍';
+    launcher.title = 'Open AI assistant';
+    launcher.setAttribute('aria-label', 'Open AI assistant');
     launcher.setAttribute('aria-expanded', 'false');
 
     launcher.addEventListener('click', function () {
       const isOpen = frame.classList.toggle('is-open');
-      launcher.textContent = isOpen ? 'Close Assistant' : 'Chat Assistant';
+      launcher.textContent = isOpen ? '×' : '🌍';
+      launcher.title = isOpen ? 'Close AI assistant' : 'Open AI assistant';
+      launcher.setAttribute('aria-label', launcher.title);
       launcher.setAttribute('aria-expanded', String(isOpen));
     });
 

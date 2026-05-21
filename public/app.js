@@ -19,6 +19,7 @@ const registryCount = document.getElementById('registry-count');
 const urlParams = new URLSearchParams(window.location.search);
 const embeddedClientId = urlParams.get('clientId') || '';
 const embeddedToken = urlParams.get('embedToken') || '';
+const embeddedSiteUrl = urlParams.get('siteUrl') || '';
 const isEmbedded = urlParams.get('embed') === '1';
 
 if (isEmbedded) {
@@ -149,7 +150,10 @@ function hydratePlatformStatus(data) {
   const platform = data.platform;
   const integrationCode = platform.integrationCode || `<script src="${platform.embedScript}" async defer></script>`;
   platformStatus.textContent = `${platform.instituteName} configured`;
-  platformSummary.textContent = `Assistant is personalized for ${platform.instituteName} and answers only from platform materials.`;
+  const knowledgeText = platform.knowledge?.pageCount
+    ? ` Collected ${platform.knowledge.pageCount} page${platform.knowledge.pageCount === 1 ? '' : 's'} into ${platform.knowledge.textFile}.`
+    : '';
+  platformSummary.textContent = `Assistant is personalized for ${platform.instituteName} and answers only from platform materials.${knowledgeText}`;
   embedCode.textContent = integrationCode;
   showIntegrationCode(integrationCode, platform.instituteName);
   setupDetails.open = !isEmbedded && !data.configured;
@@ -175,9 +179,11 @@ copyIntegrationCode?.addEventListener('click', async () => {
 
 async function loadPlatformStatus() {
   try {
-    const query = embeddedClientId
-      ? `?clientId=${encodeURIComponent(embeddedClientId)}&embedToken=${encodeURIComponent(embeddedToken)}`
-      : '';
+    const statusParams = new URLSearchParams();
+    if (embeddedClientId) statusParams.set('clientId', embeddedClientId);
+    if (embeddedToken) statusParams.set('embedToken', embeddedToken);
+    if (embeddedSiteUrl) statusParams.set('siteUrl', embeddedSiteUrl);
+    const query = statusParams.toString() ? `?${statusParams.toString()}` : '';
     const response = await fetch(`/api/platform/status${query}`);
     const data = await response.json();
 
@@ -239,7 +245,8 @@ platformForm.addEventListener('submit', async (event) => {
         servicePlan: payload.servicePlan,
         permissions,
         embedScript: data.embedScript,
-        integrationCode: data.integrationCode
+        integrationCode: data.integrationCode,
+        knowledge: data.knowledge
       }
     });
     ragStatus.textContent = `${data.chunkCount} knowledge chunks`;
@@ -290,7 +297,8 @@ chatForm.addEventListener('submit', async (event) => {
       body: JSON.stringify({
         message,
         clientId: embeddedClientId,
-        embedToken: embeddedToken
+        embedToken: embeddedToken,
+        siteUrl: embeddedSiteUrl
       })
     });
 

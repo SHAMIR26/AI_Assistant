@@ -129,7 +129,7 @@ async function buildRagIndex(options = {}) {
   };
 }
 
-function retrieveRelevantChunks(index, query, limit = 4) {
+function retrieveRelevantChunks(index, query, limit = 4, options = {}) {
   if (!index?.chunks?.length) return [];
 
   const queryTokens = tokenize(query);
@@ -140,7 +140,14 @@ function retrieveRelevantChunks(index, query, limit = 4) {
     queryTermFrequency.set(token, (queryTermFrequency.get(token) || 0) + 1);
   }
 
-  const scored = index.chunks.map((chunk) => {
+  const allowedSources = Array.isArray(options.sources)
+    ? new Set(options.sources.map((source) => String(source).replace(/\\/g, '/')))
+    : null;
+  const chunks = allowedSources
+    ? index.chunks.filter((chunk) => allowedSources.has(chunk.source))
+    : index.chunks;
+
+  const scored = chunks.map((chunk) => {
     let score = 0;
 
     for (const [token, queryCount] of queryTermFrequency.entries()) {

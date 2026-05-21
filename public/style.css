@@ -580,7 +580,7 @@ p {
   padding: 0 18px;
   border-radius: 8px;
   border: 1px solid var(--line);
-  background: #fbfcfa;
+  background: #0d0d0d;
   color: var(--text);
   font-size: 1rem;
   transition: border-color 160ms ease, box-shadow 160ms ease, background 160ms ease;

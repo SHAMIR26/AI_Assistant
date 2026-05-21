@@ -17,14 +17,19 @@ const ragTopK = Number(process.env.RAG_TOP_K) || 4;
 const ragEnabled = process.env.RAG_ENABLED !== 'false';
 const dataDir = path.join(__dirname, 'data');
 const databaseDir = path.join(__dirname, 'Database');
+const knowledgeDir = path.join(__dirname, 'knowledge');
 const platformConfigPath = path.join(dataDir, 'platform-config.json');
 const notificationLogPath = path.join(dataDir, 'owner-notifications.log');
 const organizationsPath = path.join(databaseDir, 'organizations.json');
+const databaseDataPath = path.join(databaseDir, 'data.json');
 const organizationNotificationLogPath = path.join(databaseDir, 'website-notifications.log');
-const platformProfilePath = path.join(__dirname, 'knowledge', 'platform-profile.md');
+const platformProfilePath = path.join(knowledgeDir, 'platform-profile.md');
+const fixedEmbedClientKey = process.env.FIXED_EMBED_CLIENT_KEY || 'free';
+const crawlPageLimit = Math.max(1, Number(process.env.CRAWL_PAGE_LIMIT) || 12);
+const crawlTimeoutMs = Math.max(1500, Number(process.env.CRAWL_TIMEOUT_MS) || 10000);
 
 let ragIndex = {
-  knowledgeDir: path.join(__dirname, 'knowledge'),
+  knowledgeDir,
   files: [],
   chunks: [],
   documentFrequency: new Map(),
@@ -67,12 +72,206 @@ async function ensureDatabaseDir() {
   await fs.mkdir(databaseDir, { recursive: true });
 }
 
+async function ensureKnowledgeDir() {
+  await fs.mkdir(knowledgeDir, { recursive: true });
+}
+
 function safeSlug(value) {
   return String(value || 'organization')
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '')
     .slice(0, 42) || 'organization';
+}
+
+function stripHtml(value) {
+  return String(value || '')
+    .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+    .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+    .replace(/<noscript[\s\S]*?<\/noscript>/gi, ' ')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&amp;/gi, '&')
+    .replace(/&lt;/gi, '<')
+    .replace(/&gt;/gi, '>')
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;/gi, "'")
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function extractTagContent(html, tagName) {
+  const matches = [];
+  const regex = new RegExp(`<${tagName}[^>]*>([\\s\\S]*?)<\\/${tagName}>`, 'gi');
+  let match;
+
+  while ((match = regex.exec(html)) !== null) {
+    const text = stripHtml(match[1]);
+    if (text) matches.push(text);
+  }
+
+  return matches;
+}
+
+function extractMetaContent(html, name) {
+  const regex = new RegExp(`<meta[^>]+(?:name|property)=["']${name}["'][^>]+content=["']([^"']+)["'][^>]*>`, 'i');
+  return stripHtml(regex.exec(html)?.[1] || '');
+}
+
+function extractJsonLd(html) {
+  const blocks = [];
+  const regex = /<script[^>]+type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi;
+  let match;
+
+  while ((match = regex.exec(html)) !== null) {
+    const text = match[1].trim();
+    if (!text) continue;
+    try {
+      blocks.push(JSON.parse(text));
+    } catch (error) {
+      blocks.push(text.slice(0, 4000));
+    }
+  }
+
+  return blocks;
+}
+
+function extractSameOriginLinks(html, baseUrl) {
+  const base = new URL(baseUrl);
+  const links = [];
+  const regex = /<a\b[^>]*href=["']([^"']+)["'][^>]*>/gi;
+  let match;
+
+  while ((match = regex.exec(html)) !== null) {
+    try {
+      const link = new URL(match[1], base);
+      link.hash = '';
+      if (link.origin === base.origin && ['http:', 'https:'].includes(link.protocol)) {
+        links.push(link.toString());
+      }
+    } catch (error) {
+      // Ignore malformed links found in client HTML.
+    }
+  }
+
+  return links;
+}
+
+function pageToText(page) {
+  return [
+    `URL: ${page.url}`,
+    page.title ? `Title: ${page.title}` : '',
+    page.description ? `Description: ${page.description}` : '',
+    page.headings?.length ? `Headings:\n${page.headings.map((heading) => `- ${heading}`).join('\n')}` : '',
+    page.structuredData?.length ? `Structured data:\n${JSON.stringify(page.structuredData, null, 2)}` : '',
+    page.text ? `Content:\n${page.text}` : ''
+  ].filter(Boolean).join('\n\n');
+}
+
+async function fetchHtml(url) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), crawlTimeoutMs);
+
+  try {
+    const response = await fetch(url, {
+      signal: controller.signal,
+      headers: {
+        'User-Agent': 'REDULIX-AI-Assistant-Setup/1.0',
+        Accept: 'text/html,application/xhtml+xml'
+      }
+    });
+
+    const contentType = response.headers.get('content-type') || '';
+    if (!response.ok || !contentType.toLowerCase().includes('text/html')) {
+      return null;
+    }
+
+    return response.text();
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+async function collectWebsiteKnowledge(config) {
+  await ensureKnowledgeDir();
+
+  const startUrl = normalizeUrl(config.platformUrl);
+  const slug = safeSlug(config.instituteName || new URL(startUrl).hostname);
+  const queued = [startUrl];
+  const visited = new Set();
+  const pages = [];
+
+  while (queued.length && pages.length < crawlPageLimit) {
+    const url = queued.shift();
+    if (!url || visited.has(url)) continue;
+    visited.add(url);
+
+    try {
+      const html = await fetchHtml(url);
+      if (!html) continue;
+
+      const title = extractTagContent(html, 'title')[0] || '';
+      const description = extractMetaContent(html, 'description') || extractMetaContent(html, 'og:description');
+      const headings = ['h1', 'h2', 'h3']
+        .flatMap((tagName) => extractTagContent(html, tagName))
+        .slice(0, 40);
+      const bodyText = stripHtml(html).slice(0, 18000);
+      const jsonLd = extractJsonLd(html);
+
+      pages.push({
+        url,
+        title,
+        description,
+        headings,
+        text: bodyText,
+        structuredData: jsonLd
+      });
+
+      for (const link of extractSameOriginLinks(html, url)) {
+        if (visited.size + queued.length >= crawlPageLimit * 3) break;
+        if (!visited.has(link) && !queued.includes(link)) queued.push(link);
+      }
+    } catch (error) {
+      pages.push({
+        url,
+        error: error.name === 'AbortError' ? 'Fetch timed out' : (error.message || 'Fetch failed')
+      });
+    }
+  }
+
+  const collectedAt = new Date().toISOString();
+  const record = {
+    clientId: config.clientId,
+    instituteName: config.instituteName,
+    platformUrl: config.platformUrl,
+    collectedAt,
+    pageLimit: crawlPageLimit,
+    pageCount: pages.length,
+    pages
+  };
+
+  const textPath = path.join(knowledgeDir, `${slug}.txt`);
+  const jsonPath = path.join(knowledgeDir, `${slug}.json`);
+  const textContent = [
+    `# ${config.instituteName}`,
+    `Platform URL: ${config.platformUrl}`,
+    `Collected at: ${collectedAt}`,
+    '',
+    config.platformSummary ? `Platform summary:\n${config.platformSummary}` : '',
+    '',
+    pages.map(pageToText).join('\n\n---\n\n')
+  ].filter(Boolean).join('\n');
+
+  await fs.writeFile(textPath, `${textContent.trim()}\n`);
+  await fs.writeFile(jsonPath, `${JSON.stringify(record, null, 2)}\n`);
+
+  return {
+    textFile: path.relative(knowledgeDir, textPath).replace(/\\/g, '/'),
+    jsonFile: path.relative(knowledgeDir, jsonPath).replace(/\\/g, '/'),
+    pageCount: pages.length,
+    collectedAt,
+    errors: pages.filter((page) => page.error).map((page) => ({ url: page.url, error: page.error }))
+  };
 }
 
 function createClientId(instituteName) {
@@ -87,10 +286,27 @@ function getOrganizationByClientId(clientId) {
   return organizationRegistry.find((organization) => organization.clientId === clientId) || null;
 }
 
+function normalizeComparableOrigin(value) {
+  const normalized = normalizeUrl(value);
+  if (!normalized) return null;
+  const url = new URL(normalized);
+  return url.origin.toLowerCase();
+}
+
+function getOrganizationBySiteUrl(siteUrl) {
+  const origin = normalizeComparableOrigin(siteUrl);
+  if (!origin) return null;
+
+  return organizationRegistry.find((organization) => {
+    return normalizeComparableOrigin(organization.platformUrl) === origin;
+  }) || null;
+}
+
 function getOrganizationFromRequest(req) {
   const clientId = req.body?.clientId || req.query?.clientId;
   const embedToken = req.body?.embedToken || req.query?.embedToken;
-  const organization = clientId ? getOrganizationByClientId(clientId) : null;
+  const siteUrl = req.body?.siteUrl || req.query?.siteUrl;
+  const organization = clientId ? getOrganizationByClientId(clientId) : getOrganizationBySiteUrl(siteUrl);
 
   if (!organization) return null;
   if (embedToken && organization.embedToken && embedToken !== organization.embedToken) return null;
@@ -100,7 +316,7 @@ function getOrganizationFromRequest(req) {
 
 function buildEmbedScript(req, organization) {
   const baseUrl = getPublicBaseUrl(req);
-  return `<script src="${baseUrl}/embed.js" data-client-id="${organization.clientId}" data-embed-token="${organization.embedToken}" async defer></script>`;
+  return `<script src="${baseUrl}/embed.js" data-client-key="${fixedEmbedClientKey}" async defer></script>`;
 }
 
 async function loadPlatformConfig() {
@@ -161,6 +377,7 @@ The assistant must answer only questions related to this platform, the institute
 
 async function savePlatformConfig(config) {
   await ensureDataDir();
+  await ensureKnowledgeDir();
   platformConfig = config;
   await fs.writeFile(platformConfigPath, `${JSON.stringify(config, null, 2)}\n`);
   await fs.writeFile(platformProfilePath, buildPlatformProfile(config));
@@ -183,14 +400,31 @@ async function saveOrganizationRegistry() {
     status: organization.status,
     updatedAt: organization.updatedAt,
     createdAt: organization.createdAt,
-    integrationCode: organization.integrationCode
+    integrationCode: organization.integrationCode,
+    knowledge: organization.knowledge
   }));
 
-  await fs.writeFile(organizationsPath, `${JSON.stringify({
+  const registryPayload = {
     description: 'Registered websites using the AI WebApp Personalized Chat Assistant and their integration codes.',
     updatedAt: new Date().toISOString(),
     organizations: websites
-  }, null, 2)}\n`);
+  };
+  const dataPayload = {
+    description: 'Data file listing all websites that use the AI WebApp Personalized Chat Assistant.',
+    updatedAt: registryPayload.updatedAt,
+    websites: websites.map((website) => ({
+      instituteName: website.instituteName,
+      websiteLink: website.platformUrl,
+      clientId: website.clientId,
+      status: website.status,
+      knowledgeFile: website.knowledge?.textFile || null,
+      registeredAt: website.createdAt,
+      updatedAt: website.updatedAt
+    }))
+  };
+
+  await fs.writeFile(organizationsPath, `${JSON.stringify(registryPayload, null, 2)}\n`);
+  await fs.writeFile(databaseDataPath, `${JSON.stringify(dataPayload, null, 2)}\n`);
 }
 
 async function saveOrganization(config) {
@@ -278,7 +512,7 @@ async function notifyOwner(config) {
 
 async function refreshRagIndex() {
   ragIndex = await buildRagIndex({
-    knowledgeDir: path.join(__dirname, 'knowledge'),
+    knowledgeDir,
     chunkSize: process.env.RAG_CHUNK_SIZE,
     chunkOverlap: process.env.RAG_CHUNK_OVERLAP
   });
@@ -322,17 +556,22 @@ app.get('/redulix', (req, res) => {
 
 app.post('/api/chat', async (req, res) => {
   try {
-    const { message, clientId, embedToken } = req.body;
+    const { message, clientId, embedToken, siteUrl } = req.body;
     if (!message || typeof message !== 'string') {
       return res.status(400).json({ error: 'Message is required.' });
     }
 
     const organization = getOrganizationFromRequest(req);
-    if (clientId && !organization) {
+    if ((clientId || siteUrl) && !organization) {
       return res.status(403).json({ error: 'This assistant code is not registered or is no longer active.' });
     }
 
-    const matches = !organization && ragEnabled ? retrieveRelevantChunks(ragIndex, message, ragTopK) : [];
+    const organizationSources = organization
+      ? [organization.knowledge?.textFile, organization.knowledge?.jsonFile].filter(Boolean)
+      : null;
+    const matches = ragEnabled
+      ? retrieveRelevantChunks(ragIndex, message, ragTopK, organizationSources ? { sources: organizationSources } : {})
+      : [];
     const organizationContext = organization ? buildPlatformProfile(organization) : '';
     const ragContext = [organizationContext, formatContext(matches)].filter(Boolean).join('\n\n');
 
@@ -404,7 +643,7 @@ app.post('/api/chat', async (req, res) => {
 
 app.get('/api/platform/status', (req, res) => {
   const organization = getOrganizationFromRequest(req);
-  if (req.query?.clientId && !organization) {
+  if ((req.query?.clientId || req.query?.siteUrl) && !organization) {
     return res.status(403).json({ error: 'This assistant code is not registered or is no longer active.' });
   }
   const activePlatform = organization || platformConfig;
@@ -432,6 +671,7 @@ app.get('/api/platform/status', (req, res) => {
           termsAccepted: activePlatform.termsAccepted,
           permissions: activePlatform.permissions,
           updatedAt: activePlatform.updatedAt,
+          knowledge: activePlatform.knowledge,
           embedScript: `${getPublicBaseUrl(req)}/embed.js`,
           integrationCode: activePlatform.integrationCode || (organization ? buildEmbedScript(req, organization) : null)
         }
@@ -498,8 +738,26 @@ app.post('/api/platform/setup', async (req, res) => {
       updatedAt: new Date().toISOString()
     };
 
-    const organization = await saveOrganization(config);
-    organization.integrationCode = buildEmbedScript(req, organization);
+    config.integrationCode = buildEmbedScript(req, config);
+    let collectedKnowledge = null;
+    try {
+      collectedKnowledge = await collectWebsiteKnowledge(config);
+    } catch (error) {
+      console.error('Website knowledge collection failed:', error?.message || error);
+      collectedKnowledge = {
+        textFile: null,
+        jsonFile: null,
+        pageCount: 0,
+        collectedAt: new Date().toISOString(),
+        errors: [{ url: normalizedUrl, error: error.message || 'Collection failed' }]
+      };
+    }
+
+    const organization = await saveOrganization({
+      ...config,
+      knowledge: collectedKnowledge
+    });
+    organization.integrationCode = config.integrationCode;
     await saveOrganizationRegistry();
     const emailSent = await notifyOwner(organization);
     const index = await refreshRagIndex();
@@ -514,7 +772,8 @@ app.post('/api/platform/setup', async (req, res) => {
         organizationType: organization.organizationType,
         servicePlan: organization.servicePlan,
         updatedAt: organization.updatedAt,
-        integrationCode: organization.integrationCode
+        integrationCode: organization.integrationCode,
+        knowledge: organization.knowledge
       },
       platforms: organizationRegistry.map((item) => ({
         clientId: item.clientId,
@@ -531,6 +790,7 @@ app.post('/api/platform/setup', async (req, res) => {
       embedScript: `${getPublicBaseUrl(req)}/embed.js`,
       integrationCode: organization.integrationCode,
       installationInstructions: 'Copy this integration code and paste it before the closing </body> tag on the client website.',
+      knowledge: organization.knowledge,
       fileCount: index.files.length,
       chunkCount: index.chunks.length
     });
