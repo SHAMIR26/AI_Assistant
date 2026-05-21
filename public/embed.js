@@ -108,14 +108,14 @@
     const launcher = document.createElement('button');
     launcher.className = 'launcher';
     launcher.type = 'button';
-    launcher.textContent = '🌍';
+    launcher.textContent = 'AI';
     launcher.title = 'Open AI assistant';
     launcher.setAttribute('aria-label', 'Open AI assistant');
     launcher.setAttribute('aria-expanded', 'false');
 
     launcher.addEventListener('click', function () {
       const isOpen = frame.classList.toggle('is-open');
-      launcher.textContent = isOpen ? '×' : '🌍';
+      launcher.textContent = isOpen ? 'x' : 'AI';
       launcher.title = isOpen ? 'Close AI assistant' : 'Open AI assistant';
       launcher.setAttribute('aria-label', launcher.title);
       launcher.setAttribute('aria-expanded', String(isOpen));

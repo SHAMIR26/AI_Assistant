@@ -13,6 +13,9 @@ const port = process.env.PORT || 3000;
 
 const ollamaUrl = process.env.OLLAMA_URL || 'http://localhost:11434';
 const ollamaModel = process.env.OLLAMA_MODEL || 'llama3.2';
+const openAiApiKey = process.env.OPENAI_API_KEY || '';
+const openAiModel = process.env.OPENAI_MODEL || 'gpt-4o-mini';
+const configuredAiProvider = (process.env.AI_PROVIDER || '').toLowerCase();
 const ragTopK = Number(process.env.RAG_TOP_K) || 4;
 const ragEnabled = process.env.RAG_ENABLED !== 'false';
 const dataDir = path.join(__dirname, 'data');
@@ -24,7 +27,6 @@ const organizationsPath = path.join(databaseDir, 'organizations.json');
 const databaseDataPath = path.join(databaseDir, 'data.json');
 const organizationNotificationLogPath = path.join(databaseDir, 'website-notifications.log');
 const platformProfilePath = path.join(knowledgeDir, 'platform-profile.md');
-const fixedEmbedClientKey = process.env.FIXED_EMBED_CLIENT_KEY || 'free';
 const crawlPageLimit = Math.max(1, Number(process.env.CRAWL_PAGE_LIMIT) || 12);
 const crawlTimeoutMs = Math.max(1500, Number(process.env.CRAWL_TIMEOUT_MS) || 10000);
 
@@ -316,7 +318,9 @@ function getOrganizationFromRequest(req) {
 
 function buildEmbedScript(req, organization) {
   const baseUrl = getPublicBaseUrl(req);
-  return `<script src="${baseUrl}/embed.js" data-client-key="${fixedEmbedClientKey}" async defer></script>`;
+  const clientIdAttribute = organization.clientId ? ` data-client-id="${organization.clientId}"` : '';
+  const embedTokenAttribute = organization.embedToken ? ` data-embed-token="${organization.embedToken}"` : '';
+  return `<script src="${baseUrl}/embed.js"${clientIdAttribute}${embedTokenAttribute} async defer></script>`;
 }
 
 async function loadPlatformConfig() {
@@ -542,6 +546,126 @@ ${contextBlock}User: ${message}
 Assistant:`;
 }
 
+function getAiProvider() {
+  if (configuredAiProvider) return configuredAiProvider;
+  if (openAiApiKey) return 'openai';
+  if (process.env.OLLAMA_URL || process.env.NODE_ENV !== 'production') return 'ollama';
+  return 'knowledge';
+}
+
+async function generateWithOllama(prompt) {
+  const response = await fetch(`${ollamaUrl}/api/generate`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      model: ollamaModel,
+      prompt,
+      stream: false,
+      options: {
+        temperature: 0.7,
+        num_predict: 300
+      }
+    })
+  });
+
+  const text = await response.text();
+  let data;
+  try {
+    data = JSON.parse(text);
+  } catch (parseError) {
+    console.error('Ollama returned a non-JSON response:', text.slice(0, 800));
+    throw new Error('Ollama returned an unexpected response.');
+  }
+
+  if (!response.ok) {
+    console.error('Ollama request failed:', data);
+    throw new Error(data.error || `Failed to generate a response with ${ollamaModel}.`);
+  }
+
+  return (data.response || '').trim();
+}
+
+async function generateWithOpenAi(prompt) {
+  if (!openAiApiKey) {
+    throw new Error('OPENAI_API_KEY is not configured.');
+  }
+
+  const response = await fetch('https://api.openai.com/v1/responses', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${openAiApiKey}`
+    },
+    body: JSON.stringify({
+      model: openAiModel,
+      input: prompt,
+      temperature: 0.4,
+      max_output_tokens: 450
+    })
+  });
+
+  const data = await response.json().catch(() => null);
+  if (!response.ok) {
+    console.error('OpenAI request failed:', data);
+    throw new Error(data?.error?.message || `Failed to generate a response with ${openAiModel}.`);
+  }
+
+  const directText = data?.output_text;
+  const nestedText = data?.output
+    ?.flatMap((item) => item.content || [])
+    ?.filter((content) => content.type === 'output_text' || content.text)
+    ?.map((content) => content.text)
+    ?.join('\n');
+
+  return String(directText || nestedText || '').trim();
+}
+
+function trimSentence(value, maxLength = 520) {
+  const text = String(value || '').replace(/\s+/g, ' ').trim();
+  if (text.length <= maxLength) return text;
+
+  const clipped = text.slice(0, maxLength);
+  const sentenceEnd = Math.max(clipped.lastIndexOf('.'), clipped.lastIndexOf('!'), clipped.lastIndexOf('?'));
+  return `${clipped.slice(0, sentenceEnd > 120 ? sentenceEnd + 1 : maxLength).trim()}...`;
+}
+
+function generateKnowledgeReply(message, matches, organization = null) {
+  if (matches.length) {
+    const snippets = matches
+      .slice(0, 2)
+      .map((match) => trimSentence(match.text, 420))
+      .filter(Boolean);
+
+    if (snippets.length) {
+      const intro = organization
+        ? `For ${organization.instituteName}, I found this in the platform materials:`
+        : 'I found this in the platform materials:';
+      return `${intro}\n\n${snippets.map((snippet) => `- ${snippet}`).join('\n')}`;
+    }
+  }
+
+  if (organization) {
+    return `I can help with ${organization.instituteName}. ${trimSentence(organization.platformSummary || 'Ask me about this platform, its products, services, or details from its registered website materials.', 360)}`;
+  }
+
+  return 'I can only help with this platform, and I could not find an answer in the uploaded platform materials.';
+}
+
+async function generateAssistantReply(prompt, fallbackReply) {
+  const provider = getAiProvider();
+
+  try {
+    if (provider === 'openai') return await generateWithOpenAi(prompt);
+    if (provider === 'ollama') return await generateWithOllama(prompt);
+    return fallbackReply;
+  } catch (error) {
+    console.error(`${provider} generation failed:`, error?.message || error);
+    return fallbackReply;
+  }
+}
+
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 app.use('/redulix', express.static(path.join(__dirname, 'Redulix')));
@@ -582,44 +706,14 @@ app.post('/api/chat', async (req, res) => {
       });
     }
 
-    const response = await fetch(`${ollamaUrl}/api/generate`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        model: ollamaModel,
-        prompt: buildPrompt(message, ragContext, organization),
-        stream: false,
-        options: {
-          temperature: 0.7,
-          num_predict: 300
-        }
-      })
-    });
-
-    const text = await response.text();
-    let data;
-    try {
-      data = JSON.parse(text);
-    } catch (parseError) {
-      console.error('Ollama returned a non-JSON response:', text.slice(0, 800));
-      return res.status(500).json({
-        error: 'Ollama returned an unexpected response. Make sure Ollama is running and the model is installed.'
-      });
-    }
-
-    if (!response.ok) {
-      console.error('Ollama request failed:', data);
-      return res.status(response.status).json({
-        error: data.error || `Failed to generate a response with ${ollamaModel}.`
-      });
-    }
-
-    const assistantMessage = data.response || 'Sorry, I could not generate a response.';
+    const fallbackReply = generateKnowledgeReply(message, matches, organization);
+    const assistantMessage = await generateAssistantReply(
+      buildPrompt(message, ragContext, organization),
+      fallbackReply
+    );
 
     res.json({
-      reply: assistantMessage.trim(),
+      reply: assistantMessage || fallbackReply,
       sources: matches.map((match) => ({
         id: match.id,
         source: match.source,
@@ -634,9 +728,9 @@ app.post('/api/chat', async (req, res) => {
         : null
     });
   } catch (error) {
-    console.error('Ollama request failed:', error?.message || error);
+    console.error('Chat request failed:', error?.message || error);
     res.status(503).json({
-      error: `Could not reach Ollama at ${ollamaUrl}. Start Ollama and run: ollama pull ${ollamaModel}`
+      error: 'The assistant is temporarily unavailable. Please try again shortly.'
     });
   }
 });
