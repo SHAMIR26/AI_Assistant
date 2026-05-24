@@ -21,6 +21,7 @@ const embeddedClientId = urlParams.get('clientId') || '';
 const embeddedToken = urlParams.get('embedToken') || '';
 const embeddedSiteUrl = urlParams.get('siteUrl') || '';
 const isEmbedded = urlParams.get('embed') === '1';
+const lastSetupKey = 'redulix:last-platform-setup';
 
 if (isEmbedded) {
   document.body.classList.add('is-embedded');
@@ -65,6 +66,8 @@ function setLoading(isLoading) {
 }
 
 async function loadRagStatus() {
+  if (!ragStatus) return;
+
   try {
     const response = await fetch('/api/rag/status');
     const data = await response.json();
@@ -101,6 +104,20 @@ function showIntegrationCode(code, instituteName = 'the client') {
     : 'Ready to copy after setup.';
 }
 
+function restoreLastSetupCode() {
+  if (isEmbedded) return;
+
+  try {
+    const setup = JSON.parse(sessionStorage.getItem(lastSetupKey) || 'null');
+    if (!setup?.integrationCode) return;
+
+    showIntegrationCode(setup.integrationCode, setup.instituteName || 'the client');
+    platformStatus.textContent = 'Ready to register another platform';
+  } catch (error) {
+    sessionStorage.removeItem(lastSetupKey);
+  }
+}
+
 function renderPlatformRegistry(platforms = []) {
   if (!platformRegistry || !registryCount) return;
 
@@ -135,9 +152,17 @@ function renderPlatformRegistry(platforms = []) {
   });
 }
 
-function hydratePlatformStatus(data) {
+function hydratePlatformStatus(data, options = {}) {
   if (Array.isArray(data.platforms)) {
     renderPlatformRegistry(data.platforms);
+  }
+
+  if (!isEmbedded && !options.showSavedPlatform) {
+    platformStatus.textContent = 'Ready to register a platform';
+    embedCode.textContent = 'Embed code appears after setup.';
+    showIntegrationCode('');
+    setupDetails.open = true;
+    return;
   }
 
   if (!data.configured) {
@@ -165,6 +190,7 @@ copyIntegrationCode?.addEventListener('click', async () => {
 
   try {
     await navigator.clipboard.writeText(code);
+    sessionStorage.removeItem(lastSetupKey);
     integrationCopyStatus.textContent = 'Copied. Paste it before </body> in the client website.';
     copyIntegrationCode.textContent = 'Copied';
     setTimeout(() => {
@@ -192,6 +218,7 @@ async function loadPlatformStatus() {
     }
 
     hydratePlatformStatus(data);
+    restoreLastSetupCode();
   } catch (error) {
     platformStatus.textContent = 'Setup unavailable';
     console.error(error);
@@ -248,9 +275,18 @@ platformForm.addEventListener('submit', async (event) => {
         integrationCode: data.integrationCode,
         knowledge: data.knowledge
       }
-    });
-    ragStatus.textContent = `${data.chunkCount} knowledge chunks`;
+    }, { showSavedPlatform: true });
+    platformForm.reset();
+    platformStatus.textContent = 'Saved. Ready for next platform';
+    if (ragStatus) ragStatus.textContent = `${data.chunkCount} knowledge chunks`;
     addMessage('bot', `Setup saved for ${data.platform.instituteName}. Here is the integration code to copy into the client's website files before </body>:\n\n${data.integrationCode}`);
+    sessionStorage.setItem(lastSetupKey, JSON.stringify({
+      instituteName: data.platform.instituteName,
+      integrationCode: data.integrationCode
+    }));
+    setTimeout(() => {
+      window.location.reload();
+    }, 3500);
   } catch (error) {
     platformStatus.textContent = 'Setup failed';
     addMessage('bot', error.message || 'Could not save setup.');
@@ -260,7 +296,7 @@ platformForm.addEventListener('submit', async (event) => {
   }
 });
 
-ragRefresh.addEventListener('click', async () => {
+ragRefresh?.addEventListener('click', async () => {
   ragRefresh.disabled = true;
   ragStatus.textContent = 'Refreshing knowledge...';
 

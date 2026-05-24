@@ -29,6 +29,9 @@ const organizationNotificationLogPath = path.join(databaseDir, 'website-notifica
 const platformProfilePath = path.join(knowledgeDir, 'platform-profile.md');
 const crawlPageLimit = Math.max(1, Number(process.env.CRAWL_PAGE_LIMIT) || 12);
 const crawlTimeoutMs = Math.max(1500, Number(process.env.CRAWL_TIMEOUT_MS) || 10000);
+const monitorPassword = process.env.MONITOR_PASSWORD || 'S26112007';
+const monitorSessionSecret = process.env.MONITOR_SESSION_SECRET || crypto.randomBytes(32).toString('hex');
+const monitorSessionMaxAgeMs = 1000 * 60 * 60 * 8;
 
 let ragIndex = {
   knowledgeDir,
@@ -64,6 +67,61 @@ function getPublicBaseUrl(req) {
 
 function isEmail(value) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value || '');
+}
+
+function parseCookies(req) {
+  return String(req.headers.cookie || '')
+    .split(';')
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .reduce((cookies, part) => {
+      const separatorIndex = part.indexOf('=');
+      if (separatorIndex === -1) return cookies;
+      cookies[decodeURIComponent(part.slice(0, separatorIndex))] = decodeURIComponent(part.slice(separatorIndex + 1));
+      return cookies;
+    }, {});
+}
+
+function signMonitorPayload(payload) {
+  return crypto
+    .createHmac('sha256', monitorSessionSecret)
+    .update(payload)
+    .digest('base64url');
+}
+
+function createMonitorToken() {
+  const payload = Buffer.from(JSON.stringify({
+    exp: Date.now() + monitorSessionMaxAgeMs
+  })).toString('base64url');
+  return `${payload}.${signMonitorPayload(payload)}`;
+}
+
+function verifyMonitorToken(token) {
+  const [payload, signature] = String(token || '').split('.');
+  if (!payload || !signature) return false;
+
+  const expectedSignature = signMonitorPayload(payload);
+  if (
+    expectedSignature.length !== signature.length ||
+    !crypto.timingSafeEqual(Buffer.from(expectedSignature), Buffer.from(signature))
+  ) {
+    return false;
+  }
+
+  try {
+    const session = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8'));
+    return Number(session.exp) > Date.now();
+  } catch (error) {
+    return false;
+  }
+}
+
+function requireMonitorSession(req, res, next) {
+  const cookies = parseCookies(req);
+  if (!verifyMonitorToken(cookies.monitor_session)) {
+    return res.status(401).json({ error: 'Monitor password is required.' });
+  }
+  next();
 }
 
 async function ensureDataDir() {
@@ -525,6 +583,77 @@ async function refreshRagIndex() {
   return ragIndex;
 }
 
+async function readJsonFile(filePath, fallback) {
+  try {
+    const content = await fs.readFile(filePath, 'utf8');
+    return JSON.parse(content);
+  } catch (error) {
+    if (error.code !== 'ENOENT') {
+      console.error(`Failed to read ${filePath}:`, error?.message || error);
+    }
+    return fallback;
+  }
+}
+
+async function readTextTail(filePath, maxLength = 8000) {
+  try {
+    const content = await fs.readFile(filePath, 'utf8');
+    return content.slice(-maxLength);
+  } catch (error) {
+    if (error.code !== 'ENOENT') {
+      console.error(`Failed to read ${filePath}:`, error?.message || error);
+    }
+    return '';
+  }
+}
+
+async function getKnowledgeInventory() {
+  await ensureKnowledgeDir();
+  const entries = await fs.readdir(knowledgeDir, { withFileTypes: true });
+  const files = await Promise.all(entries
+    .filter((entry) => entry.isFile())
+    .map(async (entry) => {
+      const filePath = path.join(knowledgeDir, entry.name);
+      const stats = await fs.stat(filePath);
+      return {
+        name: entry.name,
+        size: stats.size,
+        updatedAt: stats.mtime.toISOString(),
+        indexed: ragIndex.files.includes(entry.name)
+      };
+    }));
+
+  return files.sort((a, b) => a.name.localeCompare(b.name));
+}
+
+async function buildMonitorSnapshot() {
+  const [dataJson, organizationsJson, knowledgeFiles, notificationLog] = await Promise.all([
+    readJsonFile(databaseDataPath, { websites: [], updatedAt: null }),
+    readJsonFile(organizationsPath, { organizations: [], updatedAt: null }),
+    getKnowledgeInventory(),
+    readTextTail(organizationNotificationLogPath)
+  ]);
+
+  return {
+    generatedAt: new Date().toISOString(),
+    database: dataJson,
+    organizations: organizationsJson.organizations || [],
+    knowledge: {
+      directory: 'knowledge',
+      files: knowledgeFiles,
+      indexedFileCount: ragIndex.files.length,
+      chunkCount: ragIndex.chunks.length,
+      updatedAt: ragIndex.updatedAt
+    },
+    behavior: {
+      registeredCount: organizationRegistry.length,
+      activeCount: organizationRegistry.filter((organization) => organization.status === 'active').length,
+      latestRegistration: organizationRegistry[organizationRegistry.length - 1] || null,
+      notificationLog
+    }
+  };
+}
+
 function buildPrompt(message, context, organization = null) {
   const platformBlock = organization
     ? `Current client platform:
@@ -667,6 +796,11 @@ async function generateAssistantReply(prompt, fallbackReply) {
 }
 
 app.use(express.json());
+
+app.get(['/monitor', '/monitor/', '/monitor.html'], (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'Monitor', 'monitor.html'));
+});
+
 app.use(express.static(path.join(__dirname, 'public')));
 app.use('/redulix', express.static(path.join(__dirname, 'Redulix')));
 
@@ -920,6 +1054,42 @@ app.post('/api/rag/reindex', async (req, res) => {
   } catch (error) {
     console.error('Failed to rebuild RAG index:', error?.message || error);
     res.status(500).json({ error: 'Failed to rebuild the RAG index.' });
+  }
+});
+
+app.get('/api/monitor/session', (req, res) => {
+  res.json({ authenticated: verifyMonitorToken(parseCookies(req).monitor_session) });
+});
+
+app.post('/api/monitor/login', (req, res) => {
+  const password = String(req.body?.password || '');
+  const passwordMatches = password.length === monitorPassword.length &&
+    crypto.timingSafeEqual(Buffer.from(password), Buffer.from(monitorPassword));
+
+  if (!passwordMatches) {
+    return res.status(401).json({ error: 'Incorrect monitor password.' });
+  }
+
+  res.cookie('monitor_session', createMonitorToken(), {
+    httpOnly: true,
+    sameSite: 'strict',
+    secure: req.secure,
+    maxAge: monitorSessionMaxAgeMs
+  });
+  res.json({ status: 'ok' });
+});
+
+app.post('/api/monitor/logout', (req, res) => {
+  res.clearCookie('monitor_session');
+  res.json({ status: 'ok' });
+});
+
+app.get('/api/monitor/data', requireMonitorSession, async (req, res) => {
+  try {
+    res.json(await buildMonitorSnapshot());
+  } catch (error) {
+    console.error('Failed to build monitor data:', error?.message || error);
+    res.status(500).json({ error: 'Failed to load monitor data.' });
   }
 });
 
