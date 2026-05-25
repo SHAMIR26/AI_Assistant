@@ -21,7 +21,7 @@ const embeddedClientId = urlParams.get('clientId') || '';
 const embeddedToken = urlParams.get('embedToken') || '';
 const embeddedSiteUrl = urlParams.get('siteUrl') || '';
 const isEmbedded = urlParams.get('embed') === '1';
-const lastSetupKey = 'redulix:last-platform-setup';
+const lastSetupKey = 'liconr:last-platform-setup';
 
 if (isEmbedded) {
   document.body.classList.add('is-embedded');
@@ -191,11 +191,11 @@ copyIntegrationCode?.addEventListener('click', async () => {
   try {
     await navigator.clipboard.writeText(code);
     sessionStorage.removeItem(lastSetupKey);
-    integrationCopyStatus.textContent = 'Copied. Paste it before </body> in the client website.';
+    integrationCopyStatus.textContent = 'Copied. Refreshing for the next platform...';
     copyIntegrationCode.textContent = 'Copied';
     setTimeout(() => {
-      copyIntegrationCode.textContent = 'Copy code';
-    }, 1800);
+      window.location.reload();
+    }, 900);
   } catch (error) {
     integrationCodeOutput?.focus();
     integrationCodeOutput?.select();
@@ -279,14 +279,11 @@ platformForm.addEventListener('submit', async (event) => {
     platformForm.reset();
     platformStatus.textContent = 'Saved. Ready for next platform';
     if (ragStatus) ragStatus.textContent = `${data.chunkCount} knowledge chunks`;
-    addMessage('bot', `Setup saved for ${data.platform.instituteName}. Here is the integration code to copy into the client's website files before </body>:\n\n${data.integrationCode}`);
+    addMessage('bot', `Setup saved for ${data.platform.instituteName}. Copy the integration code with the Copy code button. The page will refresh only after the code is copied.`);
     sessionStorage.setItem(lastSetupKey, JSON.stringify({
       instituteName: data.platform.instituteName,
       integrationCode: data.integrationCode
     }));
-    setTimeout(() => {
-      window.location.reload();
-    }, 3500);
   } catch (error) {
     platformStatus.textContent = 'Setup failed';
     addMessage('bot', error.message || 'Could not save setup.');

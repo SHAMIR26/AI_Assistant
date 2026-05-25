@@ -95,7 +95,8 @@ function renderWebsites(websites = []) {
     meta.textContent = [
       website.status || 'unknown',
       website.clientId || 'no client id',
-      website.knowledgeFile ? `knowledge: ${website.knowledgeFile}` : 'no knowledge file'
+      website.knowledgeFile ? `knowledge: ${website.knowledgeFile}` : 'no knowledge file',
+      website.conversationFile ? `conversations: ${website.conversationFile}` : 'no conversation file'
     ].join(' | ');
 
     item.append(title, link, meta);

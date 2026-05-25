@@ -144,6 +144,13 @@ function safeSlug(value) {
     .slice(0, 42) || 'organization';
 }
 
+function platformStorageSlug(value) {
+  return String(value || 'organization')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '')
+    .slice(0, 42) || 'organization';
+}
+
 function stripHtml(value) {
   return String(value || '')
     .replace(/<script[\s\S]*?<\/script>/gi, ' ')
@@ -236,7 +243,7 @@ async function fetchHtml(url) {
     const response = await fetch(url, {
       signal: controller.signal,
       headers: {
-        'User-Agent': 'REDULIX-AI-Assistant-Setup/1.0',
+        'User-Agent': 'LICONR-AI-Assistant-Setup/1.0',
         Accept: 'text/html,application/xhtml+xml'
       }
     });
@@ -256,7 +263,7 @@ async function collectWebsiteKnowledge(config) {
   await ensureKnowledgeDir();
 
   const startUrl = normalizeUrl(config.platformUrl);
-  const slug = safeSlug(config.instituteName || new URL(startUrl).hostname);
+  const slug = platformStorageSlug(config.instituteName || new URL(startUrl).hostname);
   const queued = [startUrl];
   const visited = new Set();
   const pages = [];
@@ -381,6 +388,91 @@ function buildEmbedScript(req, organization) {
   return `<script src="${baseUrl}/embed.js"${clientIdAttribute}${embedTokenAttribute} async defer></script>`;
 }
 
+function getConversationLogPaths(organization) {
+  const slug = platformStorageSlug(organization?.instituteName || organization?.clientId || 'platform');
+  return {
+    slug,
+    jsonFile: `${slug}.json`,
+    textFile: `${slug}.txt`,
+    jsonPath: path.join(databaseDir, `${slug}.json`),
+    textPath: path.join(databaseDir, `${slug}.txt`)
+  };
+}
+
+async function ensureConversationLog(organization) {
+  await ensureDatabaseDir();
+  const paths = getConversationLogPaths(organization);
+
+  try {
+    await fs.access(paths.jsonPath);
+  } catch (error) {
+    const payload = {
+      description: `AI chat conversations for ${organization.instituteName}.`,
+      clientId: organization.clientId,
+      instituteName: organization.instituteName,
+      platformUrl: organization.platformUrl,
+      createdAt: new Date().toISOString(),
+      updatedAt: null,
+      conversations: []
+    };
+    await fs.writeFile(paths.jsonPath, `${JSON.stringify(payload, null, 2)}\n`);
+  }
+
+  try {
+    await fs.access(paths.textPath);
+  } catch (error) {
+    await fs.writeFile(paths.textPath, `AI chat conversations for ${organization.instituteName}\nPlatform: ${organization.platformUrl}\nClient ID: ${organization.clientId}\n\n`);
+  }
+
+  return paths;
+}
+
+async function recordPlatformConversation(organization, entry) {
+  if (!organization) return null;
+
+  const paths = await ensureConversationLog(organization);
+  const savedEntry = {
+    id: crypto.randomUUID(),
+    timestamp: new Date().toISOString(),
+    clientId: organization.clientId,
+    instituteName: organization.instituteName,
+    platformUrl: organization.platformUrl,
+    userMessage: entry.userMessage,
+    assistantReply: entry.assistantReply,
+    sources: entry.sources || [],
+    request: entry.request || {}
+  };
+
+  const currentLog = await readJsonFile(paths.jsonPath, {
+    description: `AI chat conversations for ${organization.instituteName}.`,
+    clientId: organization.clientId,
+    instituteName: organization.instituteName,
+    platformUrl: organization.platformUrl,
+    createdAt: savedEntry.timestamp,
+    conversations: []
+  });
+  currentLog.updatedAt = savedEntry.timestamp;
+  currentLog.conversations = Array.isArray(currentLog.conversations) ? currentLog.conversations : [];
+  currentLog.conversations.push(savedEntry);
+
+  const textEntry = [
+    `Time: ${savedEntry.timestamp}`,
+    `User: ${savedEntry.userMessage}`,
+    `Assistant: ${savedEntry.assistantReply}`,
+    savedEntry.sources.length ? `Sources: ${savedEntry.sources.map((source) => source.source).join(', ')}` : 'Sources: none',
+    ''
+  ].join('\n');
+
+  await fs.writeFile(paths.jsonPath, `${JSON.stringify(currentLog, null, 2)}\n`);
+  await fs.appendFile(paths.textPath, `${textEntry}\n`);
+
+  return {
+    jsonFile: paths.jsonFile,
+    textFile: paths.textFile,
+    updatedAt: savedEntry.timestamp
+  };
+}
+
 async function loadPlatformConfig() {
   try {
     const content = await fs.readFile(platformConfigPath, 'utf8');
@@ -463,7 +555,11 @@ async function saveOrganizationRegistry() {
     updatedAt: organization.updatedAt,
     createdAt: organization.createdAt,
     integrationCode: organization.integrationCode,
-    knowledge: organization.knowledge
+    knowledge: organization.knowledge,
+    conversationLog: organization.conversationLog || {
+      jsonFile: getConversationLogPaths(organization).jsonFile,
+      textFile: getConversationLogPaths(organization).textFile
+    }
   }));
 
   const registryPayload = {
@@ -480,6 +576,7 @@ async function saveOrganizationRegistry() {
       clientId: website.clientId,
       status: website.status,
       knowledgeFile: website.knowledge?.textFile || null,
+      conversationFile: website.conversationLog?.jsonFile || null,
       registeredAt: website.createdAt,
       updatedAt: website.updatedAt
     }))
@@ -500,6 +597,11 @@ async function saveOrganization(config) {
     status: 'active',
     createdAt: previous?.createdAt || config.createdAt || new Date().toISOString(),
     updatedAt: config.updatedAt || new Date().toISOString()
+  };
+  const conversationLog = await ensureConversationLog(organization);
+  organization.conversationLog = {
+    jsonFile: conversationLog.jsonFile,
+    textFile: conversationLog.textFile
   };
 
   if (existingIndex >= 0) {
@@ -845,14 +947,32 @@ app.post('/api/chat', async (req, res) => {
       buildPrompt(message, ragContext, organization),
       fallbackReply
     );
+    const reply = assistantMessage || fallbackReply;
+    const sources = matches.map((match) => ({
+      id: match.id,
+      source: match.source,
+      score: match.score
+    }));
+
+    let conversationLog = null;
+    try {
+      conversationLog = await recordPlatformConversation(organization, {
+        userMessage: message,
+        assistantReply: reply,
+        sources,
+        request: {
+          clientId: clientId || null,
+          siteUrl: siteUrl || null
+        }
+      });
+    } catch (error) {
+      console.error('Failed to record platform conversation:', error?.message || error);
+    }
 
     res.json({
-      reply: assistantMessage || fallbackReply,
-      sources: matches.map((match) => ({
-        id: match.id,
-        source: match.source,
-        score: match.score
-      })),
+      reply,
+      sources,
+      conversationLog,
       platform: organization
         ? {
             clientId: organization.clientId,
@@ -900,6 +1020,7 @@ app.get('/api/platform/status', (req, res) => {
           permissions: activePlatform.permissions,
           updatedAt: activePlatform.updatedAt,
           knowledge: activePlatform.knowledge,
+          conversationLog: activePlatform.conversationLog,
           embedScript: `${getPublicBaseUrl(req)}/embed.js`,
           integrationCode: activePlatform.integrationCode || (organization ? buildEmbedScript(req, organization) : null)
         }
@@ -937,7 +1058,7 @@ app.post('/api/platform/setup', async (req, res) => {
 
     if (!termsAccepted) {
       return res.status(400).json({
-        error: 'You must agree to the REDULIX terms and confirm setup authority.'
+        error: 'You must agree to the LICONR terms and confirm setup authority.'
       });
     }
 
@@ -1001,7 +1122,8 @@ app.post('/api/platform/setup', async (req, res) => {
         servicePlan: organization.servicePlan,
         updatedAt: organization.updatedAt,
         integrationCode: organization.integrationCode,
-        knowledge: organization.knowledge
+        knowledge: organization.knowledge,
+        conversationLog: organization.conversationLog
       },
       platforms: organizationRegistry.map((item) => ({
         clientId: item.clientId,

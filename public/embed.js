@@ -96,7 +96,7 @@
 
     const frame = document.createElement('iframe');
     frame.className = 'frame';
-    frame.title = 'Platform chat assistant';
+    frame.title = 'LICONR AI Chat Assistant';
     const params = new URLSearchParams({ embed: '1' });
     if (clientId) params.set('clientId', clientId);
     if (embedToken) params.set('embedToken', embedToken);
