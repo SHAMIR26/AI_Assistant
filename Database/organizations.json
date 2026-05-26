@@ -1,0 +1,37 @@
+{
+  "description": "Registered websites using the AI WebApp Personalized Chat Assistant and their integration codes.",
+  "updatedAt": "2026-05-26T04:15:23.184Z",
+  "organizations": [
+    {
+      "clientId": "urban-wear-33e0cd86",
+      "embedToken": "273c36ab2c6be6e630b8eaba57d513d4",
+      "instituteName": "Urban Wear",
+      "platformUrl": "https://urbanwear263663.netlify.app/",
+      "ownerEmail": "abdulgaffarshamir@gmail.com",
+      "contactName": "Abdul Gaffar Shamir",
+      "organizationType": "Company",
+      "servicePlan": "AI WebApp Personalized Chat Assistant",
+      "platformSummary": "Fashionable Cloth Selling",
+      "termsAccepted": true,
+      "permissions": {
+        "ownerApproval": true,
+        "storePlatformInfo": true
+      },
+      "status": "active",
+      "updatedAt": "2026-05-26T04:15:21.729Z",
+      "createdAt": "2026-05-26T04:15:21.729Z",
+      "integrationCode": "<script src=\"https://shamir26-redulix-ai-personal-assistant.onrender.com/embed.js\" data-client-id=\"urban-wear-33e0cd86\" data-embed-token=\"273c36ab2c6be6e630b8eaba57d513d4\" async defer></script>",
+      "knowledge": {
+        "textFile": "urbanwear.txt",
+        "jsonFile": "urbanwear.json",
+        "pageCount": 1,
+        "collectedAt": "2026-05-26T04:15:23.163Z",
+        "errors": []
+      },
+      "conversationLog": {
+        "jsonFile": "urbanwear.json",
+        "textFile": "urbanwear.txt"
+      }
+    }
+  ]
+}
