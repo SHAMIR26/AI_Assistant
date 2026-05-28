@@ -2,8 +2,6 @@ const chatWindow = document.getElementById('chat-window');
 const chatForm = document.getElementById('chat-form');
 const chatInput = document.getElementById('chat-input');
 const emptyState = document.querySelector('[data-empty-state]');
-const ragStatus = document.getElementById('rag-status');
-const ragRefresh = document.getElementById('rag-refresh');
 const platformForm = document.getElementById('platform-form');
 const platformStatus = document.getElementById('platform-status');
 const platformSummary = document.getElementById('platform-summary');
@@ -13,15 +11,13 @@ const integrationCard = document.getElementById('integration-card');
 const integrationCodeOutput = document.getElementById('integration-code-output');
 const copyIntegrationCode = document.getElementById('copy-integration-code');
 const integrationCopyStatus = document.getElementById('integration-copy-status');
-const platformRegistry = document.getElementById('platform-registry');
-const registryCount = document.getElementById('registry-count');
 
 const urlParams = new URLSearchParams(window.location.search);
 const embeddedClientId = urlParams.get('clientId') || '';
 const embeddedToken = urlParams.get('embedToken') || '';
 const embeddedSiteUrl = urlParams.get('siteUrl') || '';
 const isEmbedded = urlParams.get('embed') === '1';
-const lastSetupKey = 'liconr:last-platform-setup';
+let setupRefreshTimer = null;
 
 if (isEmbedded) {
   document.body.classList.add('is-embedded');
@@ -65,26 +61,6 @@ function setLoading(isLoading) {
   chatForm.querySelector('button').disabled = isLoading;
 }
 
-async function loadRagStatus() {
-  if (!ragStatus) return;
-
-  try {
-    const response = await fetch('/api/rag/status');
-    const data = await response.json();
-
-    if (!response.ok) {
-      throw new Error(data.error || 'Could not load knowledge base status.');
-    }
-
-    ragStatus.textContent = data.enabled
-      ? `${data.chunkCount} knowledge chunks`
-      : 'Knowledge disabled';
-  } catch (error) {
-    ragStatus.textContent = 'Knowledge unavailable';
-    console.error(error);
-  }
-}
-
 function setPlatformFormDisabled(isDisabled) {
   platformForm.querySelectorAll('input, textarea, button').forEach((field) => {
     if (field === copyIntegrationCode || field === integrationCodeOutput) return;
@@ -104,59 +80,7 @@ function showIntegrationCode(code, instituteName = 'the client') {
     : 'Ready to copy after setup.';
 }
 
-function restoreLastSetupCode() {
-  if (isEmbedded) return;
-
-  try {
-    const setup = JSON.parse(sessionStorage.getItem(lastSetupKey) || 'null');
-    if (!setup?.integrationCode) return;
-
-    showIntegrationCode(setup.integrationCode, setup.instituteName || 'the client');
-    platformStatus.textContent = 'Ready to register another platform';
-  } catch (error) {
-    sessionStorage.removeItem(lastSetupKey);
-  }
-}
-
-function renderPlatformRegistry(platforms = []) {
-  if (!platformRegistry || !registryCount) return;
-
-  registryCount.textContent = `${platforms.length} website${platforms.length === 1 ? '' : 's'}`;
-  platformRegistry.innerHTML = '';
-
-  if (!platforms.length) {
-    const empty = document.createElement('p');
-    empty.textContent = 'No websites have been registered yet.';
-    platformRegistry.appendChild(empty);
-    return;
-  }
-
-  platforms.forEach((platform) => {
-    const card = document.createElement('article');
-    card.className = 'registry-card';
-
-    const title = document.createElement('strong');
-    title.textContent = platform.instituteName;
-
-    const url = document.createElement('span');
-    url.textContent = platform.platformUrl;
-
-    const client = document.createElement('small');
-    client.textContent = `Client code: ${platform.clientId}`;
-
-    const code = document.createElement('code');
-    code.textContent = platform.integrationCode || 'Integration code unavailable';
-
-    card.append(title, url, client, code);
-    platformRegistry.appendChild(card);
-  });
-}
-
 function hydratePlatformStatus(data, options = {}) {
-  if (Array.isArray(data.platforms)) {
-    renderPlatformRegistry(data.platforms);
-  }
-
   if (!isEmbedded && !options.showSavedPlatform) {
     platformStatus.textContent = 'Ready to register a platform';
     embedCode.textContent = 'Embed code appears after setup.';
@@ -175,10 +99,7 @@ function hydratePlatformStatus(data, options = {}) {
   const platform = data.platform;
   const integrationCode = platform.integrationCode || `<script src="${platform.embedScript}" async defer></script>`;
   platformStatus.textContent = `${platform.instituteName} configured`;
-  const knowledgeText = platform.knowledge?.pageCount
-    ? ` Collected ${platform.knowledge.pageCount} page${platform.knowledge.pageCount === 1 ? '' : 's'} into ${platform.knowledge.textFile}.`
-    : '';
-  platformSummary.textContent = `Assistant is personalized for ${platform.instituteName} and answers only from platform materials.${knowledgeText}`;
+  platformSummary.textContent = `Assistant is personalized for ${platform.instituteName} and answers only from platform materials.`;
   embedCode.textContent = integrationCode;
   showIntegrationCode(integrationCode, platform.instituteName);
   setupDetails.open = !isEmbedded && !data.configured;
@@ -190,7 +111,7 @@ copyIntegrationCode?.addEventListener('click', async () => {
 
   try {
     await navigator.clipboard.writeText(code);
-    sessionStorage.removeItem(lastSetupKey);
+    if (setupRefreshTimer) clearTimeout(setupRefreshTimer);
     integrationCopyStatus.textContent = 'Copied. Refreshing for the next platform...';
     copyIntegrationCode.textContent = 'Copied';
     setTimeout(() => {
@@ -218,7 +139,6 @@ async function loadPlatformStatus() {
     }
 
     hydratePlatformStatus(data);
-    restoreLastSetupCode();
   } catch (error) {
     platformStatus.textContent = 'Setup unavailable';
     console.error(error);
@@ -277,40 +197,18 @@ platformForm.addEventListener('submit', async (event) => {
       }
     }, { showSavedPlatform: true });
     platformForm.reset();
-    platformStatus.textContent = 'Saved. Ready for next platform';
-    if (ragStatus) ragStatus.textContent = `${data.chunkCount} knowledge chunks`;
-    addMessage('bot', `Setup saved for ${data.platform.instituteName}. Copy the integration code with the Copy code button. The page will refresh only after the code is copied.`);
-    sessionStorage.setItem(lastSetupKey, JSON.stringify({
-      instituteName: data.platform.instituteName,
-      integrationCode: data.integrationCode
-    }));
+    platformStatus.textContent = 'Saved. Refreshing for next platform';
+    integrationCopyStatus.textContent = `Copy this code now. This page will refresh for another platform registration in 15 seconds.`;
+    addMessage('bot', `Setup saved for ${data.platform.instituteName}. Copy the integration code now. The page will refresh for another platform registration in 15 seconds.`);
+    setupRefreshTimer = setTimeout(() => {
+      window.location.reload();
+    }, 15000);
   } catch (error) {
     platformStatus.textContent = 'Setup failed';
     addMessage('bot', error.message || 'Could not save setup.');
     console.error(error);
   } finally {
     setPlatformFormDisabled(false);
-  }
-});
-
-ragRefresh?.addEventListener('click', async () => {
-  ragRefresh.disabled = true;
-  ragStatus.textContent = 'Refreshing knowledge...';
-
-  try {
-    const response = await fetch('/api/rag/reindex', { method: 'POST' });
-    const data = await response.json();
-
-    if (!response.ok) {
-      throw new Error(data.error || 'Could not refresh knowledge base.');
-    }
-
-    ragStatus.textContent = `${data.chunkCount} knowledge chunks`;
-  } catch (error) {
-    ragStatus.textContent = 'Refresh failed';
-    console.error(error);
-  } finally {
-    ragRefresh.disabled = false;
   }
 });
 
@@ -350,4 +248,3 @@ chatForm.addEventListener('submit', async (event) => {
 });
 
 loadPlatformStatus();
-loadRagStatus();
