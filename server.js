@@ -124,6 +124,15 @@ function requireMonitorSession(req, res, next) {
   next();
 }
 
+function escapeHtml(value) {
+  return String(value || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 async function ensureDataDir() {
   await fs.mkdir(dataDir, { recursive: true });
 }
@@ -615,6 +624,50 @@ async function saveOrganization(config) {
   return organization;
 }
 
+async function renderAccessDirectory(res, title, baseRoute, directoryPath) {
+  try {
+    const entries = await fs.readdir(directoryPath, { withFileTypes: true });
+    const files = entries
+      .filter((entry) => entry.isFile())
+      .map((entry) => entry.name)
+      .sort((a, b) => a.localeCompare(b));
+
+    const fileLinks = files.length
+      ? files.map((file) => {
+          const href = `${baseRoute}/${encodeURIComponent(file)}`;
+          return `<a class="access-card" href="${href}"><strong>${escapeHtml(file)}</strong><span>Open file</span></a>`;
+        }).join('\n')
+      : '<p class="integration-copy-status">No files found.</p>';
+
+    res.type('html').send(`<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>${escapeHtml(title)}</title>
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <main class="app-shell">
+    <section class="chat-panel access-panel" aria-label="${escapeHtml(title)}">
+      <header class="chat-header">
+        <div>
+          <h1>${escapeHtml(title)}</h1>
+          <a class="header-link" href="/access.html">Back to access</a>
+        </div>
+      </header>
+      <section class="access-grid">
+        ${fileLinks}
+      </section>
+    </section>
+  </main>
+</body>
+</html>`);
+  } catch (error) {
+    res.status(500).type('html').send('Could not load files.');
+  }
+}
+
 function buildOwnerNotification(config) {
   return [
     `Time: ${new Date().toISOString()}`,
@@ -901,6 +954,26 @@ app.use(express.json());
 
 app.get(['/monitor', '/monitor/', '/monitor.html'], (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'Monitor', 'monitor.html'));
+});
+
+app.get(['/access', '/access/'], (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'access.html'));
+});
+
+app.get('/access/database', (req, res) => {
+  renderAccessDirectory(res, 'Database', '/access/database', databaseDir);
+});
+
+app.get('/access/knowledge', (req, res) => {
+  renderAccessDirectory(res, 'Knowledge', '/access/knowledge', knowledgeDir);
+});
+
+app.get('/access/database/:file', (req, res) => {
+  res.sendFile(path.join(databaseDir, path.basename(req.params.file)));
+});
+
+app.get('/access/knowledge/:file', (req, res) => {
+  res.sendFile(path.join(knowledgeDir, path.basename(req.params.file)));
 });
 
 app.use(express.static(path.join(__dirname, 'public')));
