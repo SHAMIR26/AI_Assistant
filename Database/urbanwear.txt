@@ -1,4 +1,0 @@
-AI chat conversations for Urban Wear
-Platform: https://urbanwear263663.netlify.app/
-Client ID: urban-wear-33e0cd86
-
