@@ -394,7 +394,10 @@ function buildEmbedScript(req, organization) {
   const baseUrl = getPublicBaseUrl(req);
   const clientIdAttribute = organization.clientId ? ` data-client-id="${organization.clientId}"` : '';
   const embedTokenAttribute = organization.embedToken ? ` data-embed-token="${organization.embedToken}"` : '';
-  return `<script src="${baseUrl}/embed.js"${clientIdAttribute}${embedTokenAttribute} async defer></script>`;
+  return [
+    '<!-- Paste this as HTML before </body>, outside any existing <script> block. -->',
+    `<script src="${baseUrl}/embed.js"${clientIdAttribute}${embedTokenAttribute} async defer></script>`
+  ].join('\n');
 }
 
 function getConversationLogPaths(organization) {

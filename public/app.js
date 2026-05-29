@@ -76,7 +76,7 @@ function showIntegrationCode(code, instituteName = 'the client') {
   integrationCodeOutput.value = code || '';
   copyIntegrationCode.disabled = !hasCode;
   integrationCopyStatus.textContent = hasCode
-    ? `Copy this code and paste it into ${instituteName}'s website files before </body>.`
+    ? `Copy this code into ${instituteName}'s HTML before </body>, outside any existing <script>...</script> block.`
     : 'Ready to copy after setup.';
 }
 
@@ -198,8 +198,8 @@ platformForm.addEventListener('submit', async (event) => {
     }, { showSavedPlatform: true });
     platformForm.reset();
     platformStatus.textContent = 'Saved. Refreshing for next platform';
-    integrationCopyStatus.textContent = `Copy this code now. This page will refresh for another platform registration in 15 seconds.`;
-    addMessage('bot', `Setup saved for ${data.platform.instituteName}. Copy the integration code now. The page will refresh for another platform registration in 15 seconds.`);
+    integrationCopyStatus.textContent = `Copy this code now and paste it as HTML outside any existing script block. This page will refresh for another platform registration in 15 seconds.`;
+    addMessage('bot', `Setup saved for ${data.platform.instituteName}. Copy the integration code now and paste it as HTML outside any existing script block. The page will refresh for another platform registration in 15 seconds.`);
     setupRefreshTimer = setTimeout(() => {
       window.location.reload();
     }, 15000);
