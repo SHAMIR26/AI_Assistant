@@ -51,27 +51,39 @@
     });
   }
 
-  function getScriptOrigin() {
+  function getScriptBaseUrl() {
     if (embedScriptElement && embedScriptElement.src) {
-      return new URL(embedScriptElement.src, window.location.href).origin;
+      const scriptUrl = new URL(embedScriptElement.src, window.location.href);
+      scriptUrl.pathname = scriptUrl.pathname.replace(/\/embed\.js$/, '/');
+      scriptUrl.search = '';
+      scriptUrl.hash = '';
+      return scriptUrl.toString().replace(/\/$/, '');
     }
 
     return window.location.origin;
   }
 
   function injectWidget() {
-    if (!document.body || document.getElementById(WIDGET_ID)) return;
+    if (!document.body) {
+      window.requestAnimationFrame(injectWidget);
+      return;
+    }
+
+    if (document.getElementById(WIDGET_ID)) return;
 
     removeLeakedScriptText();
 
-    const origin = getScriptOrigin();
+    const baseUrl = getScriptBaseUrl();
     const host = document.createElement('div');
     host.id = WIDGET_ID;
     host.style.all = 'initial';
     host.style.position = 'fixed';
     host.style.right = '20px';
     host.style.bottom = '20px';
+    host.style.width = '56px';
+    host.style.height = '56px';
     host.style.zIndex = '2147483647';
+    host.style.pointerEvents = 'none';
 
     const root = host.attachShadow ? host.attachShadow({ mode: 'open' }) : host;
     const style = document.createElement('style');
@@ -81,13 +93,21 @@
         position: fixed;
         right: 20px;
         bottom: 20px;
+        width: 56px;
+        height: 56px;
         z-index: 2147483647;
+        pointer-events: none;
         font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      }
+
+      * {
+        box-sizing: border-box;
       }
 
       .launcher {
         width: 56px;
         height: 56px;
+        pointer-events: auto;
         border: 0;
         border-radius: 999px;
         padding: 0;
@@ -113,6 +133,7 @@
         box-shadow: 0 24px 70px rgba(0, 0, 0, 0.28);
         background: #ffffff;
         display: none;
+        pointer-events: auto;
       }
 
       .frame.is-open {
@@ -141,7 +162,7 @@
     if (clientId) params.set('clientId', clientId);
     if (embedToken) params.set('embedToken', embedToken);
     if (siteUrl) params.set('siteUrl', siteUrl);
-    frame.src = `${origin}/?${params.toString()}`;
+    frame.src = `${baseUrl}/index.html?${params.toString()}`;
     frame.loading = 'lazy';
     frame.allow = 'clipboard-write';
 
