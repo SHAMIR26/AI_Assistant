@@ -13,6 +13,44 @@
   const embedToken = embedScriptElement?.dataset?.embedToken || '';
   const siteUrl = window.location.origin;
 
+  function looksLikeLeakedScript(text) {
+    const normalized = String(text || '').replace(/\s+/g, ' ').trim();
+    if (!normalized) return false;
+
+    const hasScriptSyntax = /(?:window|document)\.(?:addEventListener|querySelectorAll|getElementById)|setTimeout|=>/.test(normalized);
+    const hasUrbanWearScript = /feather\.replace|Scroll Header Effect|Add to Cart Logic|\.add-cart|scrollTop/.test(normalized);
+
+    return hasScriptSyntax && hasUrbanWearScript;
+  }
+
+  function removeLeakedScriptText() {
+    if (!document.body) return;
+
+    const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+    const leakedNodes = [];
+
+    while (walker.nextNode()) {
+      const node = walker.currentNode;
+      if (looksLikeLeakedScript(node.textContent)) {
+        leakedNodes.push(node);
+      }
+    }
+
+    leakedNodes.forEach((node) => {
+      const parent = node.parentElement;
+      node.remove();
+
+      if (
+        parent &&
+        parent !== document.body &&
+        !parent.children.length &&
+        !parent.textContent.trim()
+      ) {
+        parent.remove();
+      }
+    });
+  }
+
   function getScriptOrigin() {
     if (embedScriptElement && embedScriptElement.src) {
       return new URL(embedScriptElement.src, window.location.href).origin;
@@ -23,6 +61,8 @@
 
   function injectWidget() {
     if (!document.body || document.getElementById(WIDGET_ID)) return;
+
+    removeLeakedScriptText();
 
     const origin = getScriptOrigin();
     const host = document.createElement('div');
