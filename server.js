@@ -515,11 +515,6 @@ async function loadOrganizationRegistry() {
 }
 
 function buildPlatformProfile(config) {
-  const permissions = Object.entries(config.permissions)
-    .filter(([, granted]) => granted)
-    .map(([name]) => `- ${name}`)
-    .join('\n');
-
   return `# Platform Profile
 
 Institute: ${config.instituteName}
@@ -532,9 +527,6 @@ Terms accepted: ${config.termsAccepted ? 'Yes' : 'No'}
 
 ## Platform Purpose
 ${config.platformSummary}
-
-## Granted Permissions
-${permissions || '- No permissions granted'}
 
 ## Assistant Boundary
 The assistant must answer only questions related to this platform, the institute, and its uploaded knowledge base. If a user asks about unrelated topics, the assistant must say it can only help with this platform.
@@ -682,9 +674,7 @@ function buildOwnerNotification(config) {
     `Service plan: ${config.servicePlan || 'Not provided'}`,
     `Contact: ${config.contactName || 'Not provided'}`,
     `Integration code: ${config.integrationCode || 'Not generated yet'}`,
-    `Terms accepted: ${config.termsAccepted ? 'yes' : 'no'}`,
-    'Requested permissions:',
-    ...Object.entries(config.permissions).map(([name, granted]) => `- ${name}: ${granted ? 'granted' : 'missing'}`)
+    `Terms accepted: ${config.termsAccepted ? 'yes' : 'no'}`
   ].join('\n');
 }
 
@@ -1104,6 +1094,10 @@ app.get('/api/platform/status', (req, res) => {
   });
 });
 
+app.get('/ai_chat.html', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'ai_chat.html'));
+});
+
 app.post('/api/platform/setup', async (req, res) => {
   try {
     const {
@@ -1114,17 +1108,10 @@ app.post('/api/platform/setup', async (req, res) => {
       organizationType,
       servicePlan,
       platformSummary,
-      termsAccepted,
-      permissions = {}
+      termsAccepted
     } = req.body;
 
     const normalizedUrl = normalizeUrl(platformUrl);
-    const requiredPermissions = [
-      'ownerApproval',
-      'storePlatformInfo'
-    ];
-
-    const missingPermissions = requiredPermissions.filter((permission) => !permissions[permission]);
 
     if (!instituteName || !platformSummary || !normalizedUrl || !isEmail(ownerEmail)) {
       return res.status(400).json({
@@ -1135,12 +1122,6 @@ app.post('/api/platform/setup', async (req, res) => {
     if (!termsAccepted) {
       return res.status(400).json({
         error: 'You must agree to the LICONR terms and confirm setup authority.'
-      });
-    }
-
-    if (missingPermissions.length) {
-      return res.status(400).json({
-        error: `Missing required permissions: ${missingPermissions.join(', ')}`
       });
     }
 
@@ -1155,10 +1136,7 @@ app.post('/api/platform/setup', async (req, res) => {
       servicePlan: (servicePlan || 'AI WebApp Personalized Chat Assistant').trim(),
       platformSummary: platformSummary.trim(),
       termsAccepted: Boolean(termsAccepted),
-      permissions: requiredPermissions.reduce((result, permission) => {
-        result[permission] = Boolean(permissions[permission]);
-        return result;
-      }, {}),
+      permissions: {},
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
     };

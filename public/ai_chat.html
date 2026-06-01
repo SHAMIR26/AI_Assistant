@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AI Chat Assistant</title>
+  <link rel="stylesheet" href="style.css" />
+  <style>
+    /* ai_chat.html only — full-screen focused chat, no setup panel */
+    .chat-panel.fullscreen-chat {
+      grid-template-rows: auto 1fr auto;
+      min-height: min(820px, calc(100vh - 64px));
+    }
+
+    .chat-header-meta {
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+    }
+
+    .chat-header-meta h1 {
+      font-size: clamp(1.4rem, 3vw, 2.2rem);
+    }
+
+    .chat-header-platform {
+      color: var(--text-muted);
+      font-size: 0.85rem;
+      font-weight: 700;
+      margin: 0;
+    }
+
+    .chat-header-platform span {
+      color: var(--accent);
+    }
+
+    /* Error / loading screens */
+    .chat-status-screen {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 14px;
+      flex: 1;
+      padding: 40px 24px;
+      text-align: center;
+      color: var(--text-muted);
+    }
+
+    .chat-status-screen svg {
+      width: 44px;
+      height: 44px;
+      fill: none;
+      stroke: var(--accent);
+      stroke-width: 1.5;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      opacity: 0.6;
+    }
+
+    .chat-status-screen p {
+      margin: 0;
+      max-width: 340px;
+      font-size: 0.92rem;
+      line-height: 1.55;
+    }
+
+    .chat-status-screen strong {
+      display: block;
+      margin-bottom: 6px;
+      color: var(--text);
+      font-size: 1.05rem;
+    }
+
+    .spinner {
+      width: 36px;
+      height: 36px;
+      border: 3px solid var(--line);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+  </style>
+</head>
+<body>
+  <main class="app-shell">
+    <section class="chat-panel fullscreen-chat" aria-label="AI Chat Assistant">
+
+      <header class="chat-header">
+        <div class="chat-header-meta">
+          <h1>AI Chat Assistant</h1>
+          <p class="chat-header-platform" id="platform-label" hidden>
+            Powered by <span id="platform-name-display"></span>
+          </p>
+        </div>
+        <div class="status-stack">
+          <span class="model-status">
+            <span class="status-dot"></span>
+            Online
+          </span>
+        </div>
+      </header>
+
+      <!-- Loading state -->
+      <div id="chat-loading" class="chat-status-screen">
+        <div class="spinner"></div>
+        <p>Loading assistant...</p>
+      </div>
+
+      <!-- Error state (hidden by default) -->
+      <div id="chat-error" class="chat-status-screen" hidden>
+        <svg viewBox="0 0 24 24">
+          <circle cx="12" cy="12" r="10"/>
+          <line x1="12" y1="8" x2="12" y2="12"/>
+          <line x1="12" y1="16" x2="12.01" y2="16"/>
+        </svg>
+        <p>
+          <strong id="chat-error-title">Platform not found</strong>
+          <span id="chat-error-msg">This chat link is invalid or the platform is no longer active. Please contact the platform owner.</span>
+        </p>
+      </div>
+
+      <!-- Chat window (hidden until platform verified) -->
+      <div id="chat-window" class="chat-window" aria-live="polite" hidden>
+        <div class="empty-state" data-empty-state>
+          <span class="empty-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" role="img">
+              <path d="M7 8h10M7 12h7M21 11.5a8.5 8.5 0 0 1-12.5 7.5L3 20.5l1.5-4.3A8.5 8.5 0 1 1 21 11.5Z" />
+            </svg>
+          </span>
+        </div>
+      </div>
+
+      <!-- Input form (hidden until platform verified) -->
+      <form id="chat-form" class="chat-form" hidden>
+        <label class="sr-only" for="chat-input">Message</label>
+        <input id="chat-input" type="text" placeholder="Ask anything..." autocomplete="off" />
+        <button type="submit" aria-label="Send message">
+          <span>Send</span>
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M5 12h14M13 6l6 6-6 6" />
+          </svg>
+        </button>
+      </form>
+
+    </section>
+  </main>
+
+  <script>
+    // ── Grab clientId from query string ──────────────────────────────────────
+    const urlParams = new URLSearchParams(window.location.search);
+    const clientId = urlParams.get('clientId') || '';
+
+    // ── DOM refs ──────────────────────────────────────────────────────────────
+    const chatWindow   = document.getElementById('chat-window');
+    const chatForm     = document.getElementById('chat-form');
+    const chatInput    = document.getElementById('chat-input');
+    const chatLoading  = document.getElementById('chat-loading');
+    const chatError    = document.getElementById('chat-error');
+    const platformLabel       = document.getElementById('platform-label');
+    const platformNameDisplay = document.getElementById('platform-name-display');
+    const emptyState   = document.querySelector('[data-empty-state]');
+
+    // ── Helpers ───────────────────────────────────────────────────────────────
+    function showError(title, msg) {
+      chatLoading.hidden = true;
+      document.getElementById('chat-error-title').textContent = title;
+      document.getElementById('chat-error-msg').textContent = msg;
+      chatError.hidden = false;
+    }
+
+    function formatSourceList(sources = []) {
+      if (!sources.length) return '';
+      const unique = [...new Set(sources.map(s => s.source))];
+      return `\n\nSources: ${unique.join(', ')}`;
+    }
+
+    function addMessage(role, text, sources = []) {
+      emptyState?.classList.add('is-hidden');
+
+      const bubble = document.createElement('div');
+      bubble.className = `message ${role}`;
+
+      const label = document.createElement('strong');
+      label.textContent = role === 'user' ? 'You' : 'Assistant';
+
+      const content = document.createElement('span');
+      content.textContent = text;
+
+      bubble.append(label, content);
+
+      if (sources.length) {
+        const sourceList = document.createElement('small');
+        sourceList.className = 'message-sources';
+        sourceList.textContent = formatSourceList(sources).trim();
+        bubble.appendChild(sourceList);
+      }
+
+      chatWindow.appendChild(bubble);
+      chatWindow.scrollTop = chatWindow.scrollHeight;
+    }
+
+    function setLoading(isLoading) {
+      chatInput.disabled = isLoading;
+      chatForm.querySelector('button').disabled = isLoading;
+    }
+
+    // ── Verify platform and initialise chat ───────────────────────────────────
+    async function init() {
+      if (!clientId) {
+        showError('No platform ID', 'This chat link is missing a platform ID. Please use the link provided by your platform.');
+        return;
+      }
+
+      try {
+        const res = await fetch(`/api/platform/status?clientId=${encodeURIComponent(clientId)}`);
+        const data = await res.json();
+
+        if (!res.ok || !data.configured) {
+          showError('Platform not found', data.error || 'This platform ID is not recognised or has been removed.');
+          return;
+        }
+
+        // Platform verified — show chat UI
+        chatLoading.hidden = true;
+        chatWindow.hidden = false;
+        chatForm.hidden = false;
+
+        const name = data.platform?.instituteName;
+        if (name) {
+          platformNameDisplay.textContent = name;
+          platformLabel.hidden = false;
+          document.title = `AI Chat — ${name}`;
+        }
+
+      } catch (err) {
+        showError('Connection error', 'Could not reach the server. Please check your connection and try again.');
+      }
+    }
+
+    // ── Chat form submit ──────────────────────────────────────────────────────
+    chatForm.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const message = chatInput.value.trim();
+      if (!message) return;
+
+      addMessage('user', message);
+      chatInput.value = '';
+      setLoading(true);
+
+      try {
+        const res = await fetch('/api/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ message, clientId })
+        });
+
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Server error');
+
+        addMessage('bot', data.reply || 'No reply from server.', data.sources);
+      } catch (err) {
+        addMessage('bot', err.message || 'There was an error sending your message.');
+      } finally {
+        setLoading(false);
+      }
+    });
+
+    init();
+  </script>
+</body>
+</html>

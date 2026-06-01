@@ -149,10 +149,6 @@ platformForm.addEventListener('submit', async (event) => {
   event.preventDefault();
 
   const formData = new FormData(platformForm);
-  const permissions = {
-    ownerApproval: formData.get('ownerApproval') === 'on',
-    storePlatformInfo: formData.get('storePlatformInfo') === 'on'
-  };
 
   const payload = {
     instituteName: formData.get('instituteName'),
@@ -163,8 +159,7 @@ platformForm.addEventListener('submit', async (event) => {
     servicePlan: formData.get('servicePlan'),
     platformSummary: formData.get('platformSummary'),
     platformActivities: formData.get('platformActivities'),
-    termsAccepted: formData.get('termsAccepted') === 'on',
-    permissions
+    termsAccepted: formData.get('termsAccepted') === 'on'
   };
 
   setPlatformFormDisabled(true);
@@ -190,16 +185,17 @@ platformForm.addEventListener('submit', async (event) => {
         contactName: payload.contactName,
         organizationType: payload.organizationType,
         servicePlan: payload.servicePlan,
-        permissions,
         embedScript: data.embedScript,
         integrationCode: data.integrationCode,
         knowledge: data.knowledge
       }
     }, { showSavedPlatform: true });
     platformForm.reset();
+
+    const chatLink = `${window.location.origin}/ai_chat.html?clientId=${data.platform.clientId}`;
     platformStatus.textContent = 'Saved. Refreshing for next platform';
     integrationCopyStatus.textContent = `Copy this code now and paste it as HTML outside any existing script block. This page will refresh for another platform registration in 15 seconds.`;
-    addMessage('bot', `Setup saved for ${data.platform.instituteName}. Copy the integration code now and paste it as HTML outside any existing script block. The page will refresh for another platform registration in 15 seconds.`);
+    addMessage('bot', `Setup saved for ${data.platform.instituteName}. Platform users can chat with the AI assistant at: ${chatLink} — Copy the integration code now and paste it as HTML outside any existing script block. The page will refresh for another platform registration in 15 seconds.`);
     setupRefreshTimer = setTimeout(() => {
       window.location.reload();
     }, 15000);

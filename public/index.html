@@ -16,7 +16,7 @@
         </div>
       </header>
 
-      <section class="setup-panel" aria-label="Institute setup">
+      <section class="setup-panel" aria-label="Platform setup">
         <details id="setup-details" open>
           <summary>
             <span>Platform setup</span>
@@ -56,12 +56,6 @@
               <textarea id="platform-summary-input" name="platformSummary" rows="3" placeholder="Describe what the platform is for." required></textarea>
             </label>
 
-            <fieldset class="permission-list">
-              <legend>Required permissions</legend>
-              <label><input type="checkbox" name="ownerApproval" required /> Platform owner approved this setup</label>
-              <label><input type="checkbox" name="storePlatformInfo" required /> Collect and Store platform and user information for personalization</label>
-            </fieldset>
-
             <label class="terms-check">
               <input type="checkbox" name="termsAccepted" required />
               I agree to the LICONR service terms and conditions and confirm setup authority.
@@ -70,6 +64,7 @@
             <div class="setup-actions">
               <button type="submit">Save setup</button>
             </div>
+
             <section id="integration-card" class="integration-card" hidden aria-live="polite">
               <div class="integration-heading">
                 <div>
@@ -88,7 +83,6 @@
             </div>
           </form>
         </details>
-
       </section>
 
       <div id="chat-window" class="chat-window" aria-live="polite">
