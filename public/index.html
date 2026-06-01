@@ -85,6 +85,7 @@
         </details>
       </section>
 
+      <!-- Result display box — shows integration snippet and chat link after registration -->
       <div id="chat-window" class="chat-window" aria-live="polite">
         <div class="empty-state" data-empty-state>
           <span class="empty-icon" aria-hidden="true">
@@ -92,19 +93,11 @@
               <path d="M7 8h10M7 12h7M21 11.5a8.5 8.5 0 0 1-12.5 7.5L3 20.5l1.5-4.3A8.5 8.5 0 1 1 21 11.5Z" />
             </svg>
           </span>
+          <h2>Registration result</h2>
+          <p>Complete the platform setup above. Your integration snippet and chat link will appear here.</p>
         </div>
       </div>
 
-      <form id="chat-form" class="chat-form">
-        <label class="sr-only" for="chat-input">Message</label>
-        <input id="chat-input" type="text" placeholder="Ask about the platform..." autocomplete="off" />
-        <button type="submit" aria-label="Send message">
-          <span>Send</span>
-          <svg viewBox="0 0 24 24" aria-hidden="true">
-            <path d="M5 12h14M13 6l6 6-6 6" />
-          </svg>
-        </button>
-      </form>
     </section>
   </main>
 
