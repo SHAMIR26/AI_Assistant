@@ -91,37 +91,12 @@
 
       <header class="chat-header">
         <div class="chat-header-meta">
-          <h1>AI Chat Assistant</h1>
+          <h1>LICONR AI Chat Assistant</h1>
           <p class="chat-header-platform" id="platform-label" hidden>
             Powered by <span id="platform-name-display"></span>
           </p>
         </div>
-        <div class="status-stack">
-          <span class="model-status">
-            <span class="status-dot"></span>
-            Online
-          </span>
-        </div>
       </header>
-
-      <!-- Loading state -->
-      <div id="chat-loading" class="chat-status-screen">
-        <div class="spinner"></div>
-        <p>Loading assistant...</p>
-      </div>
-
-      <!-- Error state (hidden by default) -->
-      <div id="chat-error" class="chat-status-screen" hidden>
-        <svg viewBox="0 0 24 24">
-          <circle cx="12" cy="12" r="10"/>
-          <line x1="12" y1="8" x2="12" y2="12"/>
-          <line x1="12" y1="16" x2="12.01" y2="16"/>
-        </svg>
-        <p>
-          <strong id="chat-error-title">Platform not found</strong>
-          <span id="chat-error-msg">This chat link is invalid or the platform is no longer active. Please contact the platform owner.</span>
-        </p>
-      </div>
 
       <!-- Chat window (hidden until platform verified) -->
       <div id="chat-window" class="chat-window" aria-live="polite" hidden>
