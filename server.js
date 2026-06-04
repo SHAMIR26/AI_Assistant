@@ -18,6 +18,11 @@ const openAiModel = process.env.OPENAI_MODEL || 'gpt-4o-mini';
 const configuredAiProvider = (process.env.AI_PROVIDER || '').toLowerCase();
 const ragTopK = Number(process.env.RAG_TOP_K) || 4;
 const ragEnabled = process.env.RAG_ENABLED !== 'false';
+const defaultPlanLimits = {
+  Mini: 100,
+  Pro: 1000,
+  Max: 5000
+};
 const databaseDir = path.join(__dirname, 'Database');
 const knowledgeDir = path.join(__dirname, 'knowledge');
 const crawlPageLimit = Math.max(1, Number(process.env.CRAWL_PAGE_LIMIT) || 12);
@@ -391,6 +396,90 @@ function createEmbedToken() {
   return crypto.randomBytes(16).toString('hex');
 }
 
+function normalizePlan(value) {
+  const plan = String(value || '').trim();
+  return ['Mini', 'Pro', 'Max'].includes(plan) ? plan : 'Mini';
+}
+
+function getPlanLimit(plan) {
+  const normalizedPlan = normalizePlan(plan);
+  const configuredLimit = Number(process.env[`PLAN_LIMIT_${normalizedPlan.toUpperCase()}`]);
+  if (Number.isFinite(configuredLimit) && configuredLimit >= 0) {
+    return configuredLimit;
+  }
+  return defaultPlanLimits[normalizedPlan];
+}
+
+function getCurrentUsagePeriod(now = new Date()) {
+  const year = now.getUTCFullYear();
+  const month = now.getUTCMonth();
+  const periodStart = new Date(Date.UTC(year, month, 1));
+  const periodEnd = new Date(Date.UTC(year, month + 1, 1));
+
+  return {
+    key: `${year}-${String(month + 1).padStart(2, '0')}`,
+    startedAt: periodStart.toISOString(),
+    endsAt: periodEnd.toISOString()
+  };
+}
+
+function normalizeUsage(organization, now = new Date()) {
+  const plan = normalizePlan(organization?.plan);
+  const limit = getPlanLimit(plan);
+  const period = getCurrentUsagePeriod(now);
+  const existingUsage = organization?.usage || {};
+  const existingPeriod = existingUsage.periodKey === period.key ? existingUsage : {};
+
+  return {
+    plan,
+    period: 'monthly',
+    periodKey: period.key,
+    periodStartedAt: period.startedAt,
+    periodEndsAt: period.endsAt,
+    messagesUsed: Math.max(0, Number(existingPeriod.messagesUsed) || 0),
+    messagesLimit: limit,
+    messagesRemaining: Math.max(0, limit - (Number(existingPeriod.messagesUsed) || 0)),
+    updatedAt: existingPeriod.updatedAt || null
+  };
+}
+
+function getUsageLimitResult(organization) {
+  const usage = normalizeUsage(organization);
+  return {
+    usage,
+    allowed: usage.messagesUsed < usage.messagesLimit
+  };
+}
+
+async function writeOrganizationBasicInfo(organization) {
+  const paths = await ensurePlatformFolders(organization);
+  await fs.writeFile(paths.basicInfoPath, `${JSON.stringify(organization, null, 2)}\n`);
+}
+
+async function incrementPlatformUsage(organization) {
+  if (!organization) return null;
+
+  const usage = normalizeUsage(organization);
+  const updatedUsage = {
+    ...usage,
+    messagesUsed: usage.messagesUsed + 1,
+    messagesRemaining: Math.max(0, usage.messagesLimit - usage.messagesUsed - 1),
+    updatedAt: new Date().toISOString()
+  };
+
+  organization.plan = normalizePlan(organization.plan);
+  organization.usage = updatedUsage;
+  organization.updatedAt = updatedUsage.updatedAt;
+
+  const existingIndex = organizationRegistry.findIndex((item) => item.clientId === organization.clientId);
+  if (existingIndex >= 0) {
+    organizationRegistry[existingIndex] = organization;
+  }
+
+  await writeOrganizationBasicInfo(organization);
+  return updatedUsage;
+}
+
 function getOrganizationByClientId(clientId) {
   return organizationRegistry.find((organization) => organization.clientId === clientId) || null;
 }
@@ -526,6 +615,8 @@ async function loadOrganizationRegistry() {
         const content = await fs.readFile(basicInfoPath, 'utf8');
         const organization = JSON.parse(content);
         if (organization?.clientId && organization?.platformUrl) {
+          organization.plan = normalizePlan(organization.plan);
+          organization.usage = normalizeUsage(organization);
           organizations.push(organization);
         }
       } catch (error) {
@@ -558,6 +649,8 @@ async function saveOrganization(config) {
     createdAt: previous?.createdAt || config.createdAt || new Date().toISOString(),
     updatedAt: config.updatedAt || new Date().toISOString()
   };
+  organization.plan = normalizePlan(organization.plan);
+  organization.usage = normalizeUsage(organization);
   const storagePaths = await ensurePlatformFolders(organization);
   await fs.writeFile(storagePaths.basicInfoPath, `${JSON.stringify(organization, null, 2)}\n`);
 
@@ -573,6 +666,7 @@ async function saveOrganization(config) {
     detailFile: `${storagePaths.folderName}/${storagePaths.detailFile}`,
     textFile: `${storagePaths.folderName}/${storagePaths.detailFile}`
   };
+  organization.usage = normalizeUsage(organization);
   await fs.writeFile(storagePaths.basicInfoPath, `${JSON.stringify(organization, null, 2)}\n`);
 
   if (existingIndex >= 0) {
@@ -662,6 +756,7 @@ function buildOwnerNotification(config) {
     `Client ID: ${config.clientId || 'Not assigned'}`,
     `Platform: ${config.platformUrl}`,
     `Organization type: ${config.organizationType || 'Not provided'}`,
+    `Plan: ${config.plan || 'Mini'}`,
     `Service plan: ${config.servicePlan || 'Not provided'}`,
     `Contact: ${config.contactName || 'Not provided'}`,
     `Integration code: ${config.integrationCode || 'Not generated yet'}`,
@@ -782,6 +877,7 @@ function buildPrompt(message, context, organization = null) {
 Institute: ${organization.instituteName}
 Platform URL: ${organization.platformUrl}
 Organization type: ${organization.organizationType || 'Not provided'}
+Plan: ${organization.plan || 'Mini'}
 Service plan: ${organization.servicePlan || 'AI WebApp Personalized Chat Assistant'}
 
 `
@@ -1046,6 +1142,7 @@ app.get('/api/platform/status', (req, res) => {
       instituteName: item.instituteName,
       platformUrl: item.platformUrl,
       ownerEmail: item.ownerEmail,
+      plan: item.plan || 'Mini',
       status: item.status,
       updatedAt: item.updatedAt,
       integrationCode: item.integrationCode
@@ -1058,6 +1155,7 @@ app.get('/api/platform/status', (req, res) => {
           ownerEmail: activePlatform.ownerEmail,
           contactName: activePlatform.contactName,
           organizationType: activePlatform.organizationType,
+          plan: activePlatform.plan || 'Mini',
           servicePlan: activePlatform.servicePlan,
           termsAccepted: activePlatform.termsAccepted,
           permissions: activePlatform.permissions,
@@ -1083,6 +1181,7 @@ app.post('/api/platform/setup', async (req, res) => {
       ownerEmail,
       contactName,
       organizationType,
+      plan,
       servicePlan,
       platformSummary,
       termsAccepted
@@ -1110,6 +1209,7 @@ app.post('/api/platform/setup', async (req, res) => {
       ownerEmail: ownerEmail.trim(),
       contactName: (contactName || '').trim(),
       organizationType: (organizationType || '').trim(),
+      plan: normalizePlan(plan),
       servicePlan: (servicePlan || 'AI WebApp Personalized Chat Assistant').trim(),
       platformSummary: platformSummary.trim(),
       termsAccepted: Boolean(termsAccepted),
@@ -1149,6 +1249,7 @@ app.post('/api/platform/setup', async (req, res) => {
         platformUrl: organization.platformUrl,
         ownerEmail: organization.ownerEmail,
         organizationType: organization.organizationType,
+        plan: organization.plan || 'Mini',
         servicePlan: organization.servicePlan,
         updatedAt: organization.updatedAt,
         integrationCode: organization.integrationCode,
@@ -1160,6 +1261,7 @@ app.post('/api/platform/setup', async (req, res) => {
         instituteName: item.instituteName,
         platformUrl: item.platformUrl,
         ownerEmail: item.ownerEmail,
+        plan: item.plan || 'Mini',
         status: item.status,
         updatedAt: item.updatedAt,
         integrationCode: item.integrationCode

@@ -96,6 +96,7 @@ body {
 }
 
 .platform-form input,
+.platform-form select,
 .platform-form textarea {
   width: 100%;
   min-width: 0;
@@ -107,7 +108,8 @@ body {
   font-size: 0.95rem;
 }
 
-.platform-form input {
+.platform-form input,
+.platform-form select {
   height: 42px;
   padding: 0 12px;
 }
@@ -119,6 +121,7 @@ body {
 }
 
 .platform-form input:focus,
+.platform-form select:focus,
 .platform-form textarea:focus {
   outline: none;
   border-color: var(--accent);

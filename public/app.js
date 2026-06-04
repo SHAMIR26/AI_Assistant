@@ -123,7 +123,7 @@ function showResultCard({ instituteName, chatLink, integrationCode }) {
 }
 
 function setPlatformFormDisabled(isDisabled) {
-  platformForm.querySelectorAll('input, textarea, button').forEach((field) => {
+  platformForm.querySelectorAll('input, select, textarea, button').forEach((field) => {
     if (field === copyIntegrationCode || field === integrationCodeOutput) return;
     field.disabled = isDisabled;
   });
@@ -217,6 +217,7 @@ platformForm.addEventListener('submit', async (event) => {
     ownerEmail: formData.get('ownerEmail'),
     contactName: formData.get('contactName'),
     organizationType: formData.get('organizationType'),
+    plan: formData.get('plan'),
     servicePlan: formData.get('servicePlan'),
     platformSummary: formData.get('platformSummary'),
     platformActivities: formData.get('platformActivities'),
@@ -245,6 +246,7 @@ platformForm.addEventListener('submit', async (event) => {
         ...data.platform,
         contactName: payload.contactName,
         organizationType: payload.organizationType,
+        plan: payload.plan,
         servicePlan: payload.servicePlan,
         embedScript: data.embedScript,
         integrationCode: data.integrationCode,
