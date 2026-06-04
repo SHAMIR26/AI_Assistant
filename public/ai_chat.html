@@ -153,6 +153,8 @@
     // ── Grab clientId from query string ──────────────────────────────────────
     const urlParams = new URLSearchParams(window.location.search);
     const clientId = urlParams.get('clientId') || '';
+    const embedToken = urlParams.get('embedToken') || '';
+    const siteUrl = urlParams.get('siteUrl') || '';
 
     // ── DOM refs ──────────────────────────────────────────────────────────────
     const chatWindow   = document.getElementById('chat-window');
@@ -216,7 +218,11 @@
       }
 
       try {
-        const res = await fetch(`/api/platform/status?clientId=${encodeURIComponent(clientId)}`);
+        const statusParams = new URLSearchParams({ clientId });
+        if (embedToken) statusParams.set('embedToken', embedToken);
+        if (siteUrl) statusParams.set('siteUrl', siteUrl);
+
+        const res = await fetch(`/api/platform/status?${statusParams.toString()}`);
         const data = await res.json();
 
         if (!res.ok || !data.configured) {
@@ -255,7 +261,7 @@
         const res = await fetch('/api/chat', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ message, clientId })
+          body: JSON.stringify({ message, clientId, embedToken, siteUrl })
         });
 
         const data = await res.json();

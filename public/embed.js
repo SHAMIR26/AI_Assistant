@@ -162,7 +162,7 @@
     if (clientId) params.set('clientId', clientId);
     if (embedToken) params.set('embedToken', embedToken);
     if (siteUrl) params.set('siteUrl', siteUrl);
-    frame.src = `${baseUrl}/index.html?${params.toString()}`;
+    frame.src = `${baseUrl}/ai_chat.html?${params.toString()}`;
     frame.loading = 'lazy';
     frame.allow = 'clipboard-write';
 
