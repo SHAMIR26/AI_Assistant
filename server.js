@@ -18,15 +18,8 @@ const openAiModel = process.env.OPENAI_MODEL || 'gpt-4o-mini';
 const configuredAiProvider = (process.env.AI_PROVIDER || '').toLowerCase();
 const ragTopK = Number(process.env.RAG_TOP_K) || 4;
 const ragEnabled = process.env.RAG_ENABLED !== 'false';
-const dataDir = path.join(__dirname, 'data');
 const databaseDir = path.join(__dirname, 'Database');
 const knowledgeDir = path.join(__dirname, 'knowledge');
-const platformConfigPath = path.join(dataDir, 'platform-config.json');
-const notificationLogPath = path.join(dataDir, 'owner-notifications.log');
-const organizationsPath = path.join(databaseDir, 'organizations.json');
-const databaseDataPath = path.join(databaseDir, 'data.json');
-const organizationNotificationLogPath = path.join(databaseDir, 'website-notifications.log');
-const platformProfilePath = path.join(knowledgeDir, 'platform-profile.md');
 const crawlPageLimit = Math.max(1, Number(process.env.CRAWL_PAGE_LIMIT) || 12);
 const crawlTimeoutMs = Math.max(1500, Number(process.env.CRAWL_TIMEOUT_MS) || 10000);
 const monitorPassword = process.env.MONITOR_PASSWORD || 'S26112007';
@@ -133,10 +126,6 @@ function escapeHtml(value) {
     .replace(/'/g, '&#39;');
 }
 
-async function ensureDataDir() {
-  await fs.mkdir(dataDir, { recursive: true });
-}
-
 async function ensureDatabaseDir() {
   await fs.mkdir(databaseDir, { recursive: true });
 }
@@ -154,10 +143,54 @@ function safeSlug(value) {
 }
 
 function platformStorageSlug(value) {
-  return String(value || 'organization')
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '')
-    .slice(0, 42) || 'organization';
+  const words = String(value || 'organization')
+    .match(/[a-z0-9]+/gi);
+
+  if (!words?.length) return 'Organization';
+
+  return words
+    .map((word) => {
+      const normalized = word.toLowerCase();
+      return `${normalized.charAt(0).toUpperCase()}${normalized.slice(1)}`;
+    })
+    .join('')
+    .slice(0, 42) || 'Organization';
+}
+
+function getPlatformStoragePaths(platformNameOrOrganization) {
+  const name = typeof platformNameOrOrganization === 'string'
+    ? platformNameOrOrganization
+    : platformNameOrOrganization?.instituteName || platformNameOrOrganization?.clientId || 'platform';
+  const folderName = platformStorageSlug(name);
+  const databasePlatformDir = path.join(databaseDir, folderName);
+  const knowledgePlatformDir = path.join(knowledgeDir, folderName);
+
+  return {
+    folderName,
+    databasePlatformDir,
+    knowledgePlatformDir,
+    basicInfoFile: 'basic_info.json',
+    conversationFile: 'conversation.json',
+    detailFile: 'detail.txt',
+    basicInfoPath: path.join(databasePlatformDir, 'basic_info.json'),
+    databaseConversationPath: path.join(databasePlatformDir, 'conversation.json'),
+    knowledgeConversationPath: path.join(knowledgePlatformDir, 'conversation.json'),
+    databaseDetailPath: path.join(databasePlatformDir, 'detail.txt'),
+    knowledgeDetailPath: path.join(knowledgePlatformDir, 'detail.txt')
+  };
+}
+
+async function ensurePlatformFolders(platformNameOrOrganization) {
+  await ensureDatabaseDir();
+  await ensureKnowledgeDir();
+
+  const paths = getPlatformStoragePaths(platformNameOrOrganization);
+  await Promise.all([
+    fs.mkdir(paths.databasePlatformDir, { recursive: true }),
+    fs.mkdir(paths.knowledgePlatformDir, { recursive: true })
+  ]);
+
+  return paths;
 }
 
 function stripHtml(value) {
@@ -269,10 +302,8 @@ async function fetchHtml(url) {
 }
 
 async function collectWebsiteKnowledge(config) {
-  await ensureKnowledgeDir();
-
   const startUrl = normalizeUrl(config.platformUrl);
-  const slug = platformStorageSlug(config.instituteName || new URL(startUrl).hostname);
+  const paths = await ensurePlatformFolders(config.instituteName || new URL(startUrl).hostname);
   const queued = [startUrl];
   const visited = new Set();
   const pages = [];
@@ -326,8 +357,6 @@ async function collectWebsiteKnowledge(config) {
     pages
   };
 
-  const textPath = path.join(knowledgeDir, `${slug}.txt`);
-  const jsonPath = path.join(knowledgeDir, `${slug}.json`);
   const textContent = [
     `# ${config.instituteName}`,
     `Platform URL: ${config.platformUrl}`,
@@ -338,12 +367,16 @@ async function collectWebsiteKnowledge(config) {
     pages.map(pageToText).join('\n\n---\n\n')
   ].filter(Boolean).join('\n');
 
-  await fs.writeFile(textPath, `${textContent.trim()}\n`);
-  await fs.writeFile(jsonPath, `${JSON.stringify(record, null, 2)}\n`);
+  await Promise.all([
+    fs.writeFile(paths.databaseDetailPath, `${textContent.trim()}\n`),
+    fs.writeFile(paths.knowledgeDetailPath, `${textContent.trim()}\n`)
+  ]);
 
   return {
-    textFile: path.relative(knowledgeDir, textPath).replace(/\\/g, '/'),
-    jsonFile: path.relative(knowledgeDir, jsonPath).replace(/\\/g, '/'),
+    folder: paths.folderName,
+    detailFile: `${paths.folderName}/${paths.detailFile}`,
+    textFile: `${paths.folderName}/${paths.detailFile}`,
+    jsonFile: null,
     pageCount: pages.length,
     collectedAt,
     errors: pages.filter((page) => page.error).map((page) => ({ url: page.url, error: page.error }))
@@ -401,39 +434,37 @@ function buildEmbedScript(req, organization) {
 }
 
 function getConversationLogPaths(organization) {
-  const slug = platformStorageSlug(organization?.instituteName || organization?.clientId || 'platform');
+  const paths = getPlatformStoragePaths(organization);
   return {
-    slug,
-    jsonFile: `${slug}.json`,
-    textFile: `${slug}.txt`,
-    jsonPath: path.join(databaseDir, `${slug}.json`),
-    textPath: path.join(databaseDir, `${slug}.txt`)
+    slug: paths.folderName,
+    folder: paths.folderName,
+    jsonFile: `${paths.folderName}/${paths.conversationFile}`,
+    textFile: `${paths.folderName}/${paths.conversationFile}`,
+    databaseJsonPath: paths.databaseConversationPath,
+    knowledgeJsonPath: paths.knowledgeConversationPath,
+    jsonPath: paths.databaseConversationPath
   };
 }
 
 async function ensureConversationLog(organization) {
-  await ensureDatabaseDir();
+  await ensurePlatformFolders(organization);
   const paths = getConversationLogPaths(organization);
+  const payload = {
+    description: `AI chat conversations for ${organization.instituteName}.`,
+    clientId: organization.clientId,
+    instituteName: organization.instituteName,
+    platformUrl: organization.platformUrl,
+    createdAt: new Date().toISOString(),
+    updatedAt: null,
+    conversations: []
+  };
 
-  try {
-    await fs.access(paths.jsonPath);
-  } catch (error) {
-    const payload = {
-      description: `AI chat conversations for ${organization.instituteName}.`,
-      clientId: organization.clientId,
-      instituteName: organization.instituteName,
-      platformUrl: organization.platformUrl,
-      createdAt: new Date().toISOString(),
-      updatedAt: null,
-      conversations: []
-    };
-    await fs.writeFile(paths.jsonPath, `${JSON.stringify(payload, null, 2)}\n`);
-  }
-
-  try {
-    await fs.access(paths.textPath);
-  } catch (error) {
-    await fs.writeFile(paths.textPath, `AI chat conversations for ${organization.instituteName}\nPlatform: ${organization.platformUrl}\nClient ID: ${organization.clientId}\n\n`);
+  for (const filePath of [paths.databaseJsonPath, paths.knowledgeJsonPath]) {
+    try {
+      await fs.access(filePath);
+    } catch (error) {
+      await fs.writeFile(filePath, `${JSON.stringify(payload, null, 2)}\n`);
+    }
   }
 
   return paths;
@@ -455,7 +486,7 @@ async function recordPlatformConversation(organization, entry) {
     request: entry.request || {}
   };
 
-  const currentLog = await readJsonFile(paths.jsonPath, {
+  const currentLog = await readJsonFile(paths.databaseJsonPath, {
     description: `AI chat conversations for ${organization.instituteName}.`,
     clientId: organization.clientId,
     instituteName: organization.instituteName,
@@ -467,16 +498,11 @@ async function recordPlatformConversation(organization, entry) {
   currentLog.conversations = Array.isArray(currentLog.conversations) ? currentLog.conversations : [];
   currentLog.conversations.push(savedEntry);
 
-  const textEntry = [
-    `Time: ${savedEntry.timestamp}`,
-    `User: ${savedEntry.userMessage}`,
-    `Assistant: ${savedEntry.assistantReply}`,
-    savedEntry.sources.length ? `Sources: ${savedEntry.sources.map((source) => source.source).join(', ')}` : 'Sources: none',
-    ''
-  ].join('\n');
-
-  await fs.writeFile(paths.jsonPath, `${JSON.stringify(currentLog, null, 2)}\n`);
-  await fs.appendFile(paths.textPath, `${textEntry}\n`);
+  const content = `${JSON.stringify(currentLog, null, 2)}\n`;
+  await Promise.all([
+    fs.writeFile(paths.databaseJsonPath, content),
+    fs.writeFile(paths.knowledgeJsonPath, content)
+  ]);
 
   return {
     jsonFile: paths.jsonFile,
@@ -485,109 +511,39 @@ async function recordPlatformConversation(organization, entry) {
   };
 }
 
-async function loadPlatformConfig() {
-  try {
-    const content = await fs.readFile(platformConfigPath, 'utf8');
-    platformConfig = JSON.parse(content);
-  } catch (error) {
-    if (error.code !== 'ENOENT') {
-      console.error('Failed to load platform config:', error?.message || error);
-    }
-    platformConfig = null;
-  }
-}
-
 async function loadOrganizationRegistry() {
   await ensureDatabaseDir();
 
   try {
-    const content = await fs.readFile(organizationsPath, 'utf8');
-    const parsed = JSON.parse(content);
-    organizationRegistry = Array.isArray(parsed.organizations) ? parsed.organizations : [];
+    const entries = await fs.readdir(databaseDir, { withFileTypes: true });
+    const organizations = [];
+
+    for (const entry of entries) {
+      if (!entry.isDirectory()) continue;
+
+      const basicInfoPath = path.join(databaseDir, entry.name, 'basic_info.json');
+      try {
+        const content = await fs.readFile(basicInfoPath, 'utf8');
+        const organization = JSON.parse(content);
+        if (organization?.clientId && organization?.platformUrl) {
+          organizations.push(organization);
+        }
+      } catch (error) {
+        if (error.code !== 'ENOENT') {
+          console.error(`Failed to load ${basicInfoPath}:`, error?.message || error);
+        }
+      }
+    }
+
+    organizationRegistry = organizations.sort((a, b) => {
+      return String(a.createdAt || '').localeCompare(String(b.createdAt || ''));
+    });
     platformConfig = organizationRegistry[organizationRegistry.length - 1] || null;
   } catch (error) {
-    if (error.code !== 'ENOENT') {
-      console.error('Failed to load organization registry:', error?.message || error);
-    }
+    console.error('Failed to load organization registry:', error?.message || error);
     organizationRegistry = [];
     platformConfig = null;
   }
-}
-
-function buildPlatformProfile(config) {
-  return `# Platform Profile
-
-Institute: ${config.instituteName}
-Organization type: ${config.organizationType || 'Not provided'}
-Platform URL: ${config.platformUrl}
-Owner email: ${config.ownerEmail}
-Setup contact: ${config.contactName || 'Not provided'}
-Service plan: ${config.servicePlan || 'AI WebApp Personalized Chat Assistant'}
-Terms accepted: ${config.termsAccepted ? 'Yes' : 'No'}
-
-## Platform Purpose
-${config.platformSummary}
-
-## Assistant Boundary
-The assistant must answer only questions related to this platform, the institute, and its uploaded knowledge base. If a user asks about unrelated topics, the assistant must say it can only help with this platform.
-`;
-}
-
-async function savePlatformConfig(config) {
-  await ensureDataDir();
-  await ensureKnowledgeDir();
-  platformConfig = config;
-  await fs.writeFile(platformConfigPath, `${JSON.stringify(config, null, 2)}\n`);
-  await fs.writeFile(platformProfilePath, buildPlatformProfile(config));
-}
-
-async function saveOrganizationRegistry() {
-  await ensureDatabaseDir();
-  const websites = organizationRegistry.map((organization) => ({
-    clientId: organization.clientId,
-    embedToken: organization.embedToken,
-    instituteName: organization.instituteName,
-    platformUrl: organization.platformUrl,
-    ownerEmail: organization.ownerEmail,
-    contactName: organization.contactName,
-    organizationType: organization.organizationType,
-    servicePlan: organization.servicePlan,
-    platformSummary: organization.platformSummary,
-    termsAccepted: organization.termsAccepted,
-    permissions: organization.permissions,
-    status: organization.status,
-    updatedAt: organization.updatedAt,
-    createdAt: organization.createdAt,
-    integrationCode: organization.integrationCode,
-    knowledge: organization.knowledge,
-    conversationLog: organization.conversationLog || {
-      jsonFile: getConversationLogPaths(organization).jsonFile,
-      textFile: getConversationLogPaths(organization).textFile
-    }
-  }));
-
-  const registryPayload = {
-    description: 'Registered websites using the AI WebApp Personalized Chat Assistant and their integration codes.',
-    updatedAt: new Date().toISOString(),
-    organizations: websites
-  };
-  const dataPayload = {
-    description: 'Data file listing all websites that use the AI WebApp Personalized Chat Assistant.',
-    updatedAt: registryPayload.updatedAt,
-    websites: websites.map((website) => ({
-      instituteName: website.instituteName,
-      websiteLink: website.platformUrl,
-      clientId: website.clientId,
-      status: website.status,
-      knowledgeFile: website.knowledge?.textFile || null,
-      conversationFile: website.conversationLog?.jsonFile || null,
-      registeredAt: website.createdAt,
-      updatedAt: website.updatedAt
-    }))
-  };
-
-  await fs.writeFile(organizationsPath, `${JSON.stringify(registryPayload, null, 2)}\n`);
-  await fs.writeFile(databaseDataPath, `${JSON.stringify(dataPayload, null, 2)}\n`);
 }
 
 async function saveOrganization(config) {
@@ -602,11 +558,22 @@ async function saveOrganization(config) {
     createdAt: previous?.createdAt || config.createdAt || new Date().toISOString(),
     updatedAt: config.updatedAt || new Date().toISOString()
   };
+  const storagePaths = await ensurePlatformFolders(organization);
+  await fs.writeFile(storagePaths.basicInfoPath, `${JSON.stringify(organization, null, 2)}\n`);
+
   const conversationLog = await ensureConversationLog(organization);
   organization.conversationLog = {
     jsonFile: conversationLog.jsonFile,
     textFile: conversationLog.textFile
   };
+  organization.knowledge = {
+    ...(organization.knowledge || {}),
+    folder: storagePaths.folderName,
+    conversationFile: `${storagePaths.folderName}/${storagePaths.conversationFile}`,
+    detailFile: `${storagePaths.folderName}/${storagePaths.detailFile}`,
+    textFile: `${storagePaths.folderName}/${storagePaths.detailFile}`
+  };
+  await fs.writeFile(storagePaths.basicInfoPath, `${JSON.stringify(organization, null, 2)}\n`);
 
   if (existingIndex >= 0) {
     organizationRegistry[existingIndex] = organization;
@@ -615,21 +582,33 @@ async function saveOrganization(config) {
   }
 
   platformConfig = organization;
-  await saveOrganizationRegistry();
   return organization;
+}
+
+async function collectAccessFiles(directoryPath, rootPath = directoryPath) {
+  const entries = await fs.readdir(directoryPath, { withFileTypes: true });
+  const files = [];
+
+  for (const entry of entries) {
+    const fullPath = path.join(directoryPath, entry.name);
+    if (entry.isDirectory()) {
+      files.push(...await collectAccessFiles(fullPath, rootPath));
+    } else if (entry.isFile()) {
+      files.push(path.relative(rootPath, fullPath).replace(/\\/g, '/'));
+    }
+  }
+
+  return files;
 }
 
 async function renderAccessDirectory(res, title, baseRoute, directoryPath) {
   try {
-    const entries = await fs.readdir(directoryPath, { withFileTypes: true });
-    const files = entries
-      .filter((entry) => entry.isFile())
-      .map((entry) => entry.name)
+    const files = (await collectAccessFiles(directoryPath))
       .sort((a, b) => a.localeCompare(b));
 
     const fileLinks = files.length
       ? files.map((file) => {
-          const href = `${baseRoute}/${encodeURIComponent(file)}`;
+          const href = `${baseRoute}/${file.split('/').map(encodeURIComponent).join('/')}`;
           return `<a class="access-card" href="${href}"><strong>${escapeHtml(file)}</strong><span>Open file</span></a>`;
         }).join('\n')
       : '<p class="integration-copy-status">No files found.</p>';
@@ -661,6 +640,18 @@ async function renderAccessDirectory(res, title, baseRoute, directoryPath) {
   } catch (error) {
     res.status(500).type('html').send('Could not load files.');
   }
+}
+
+function sendAccessFile(res, rootDir, requestedPath) {
+  const normalizedPath = path.normalize(requestedPath || '').replace(/^(\.\.(\\|\/|$))+/, '');
+  const filePath = path.resolve(rootDir, normalizedPath);
+  const resolvedRoot = path.resolve(rootDir);
+
+  if (filePath !== resolvedRoot && filePath.startsWith(`${resolvedRoot}${path.sep}`)) {
+    return res.sendFile(filePath);
+  }
+
+  return res.status(404).send('File not found.');
 }
 
 function buildOwnerNotification(config) {
@@ -704,20 +695,14 @@ async function sendOwnerEmail(config, notificationText) {
 }
 
 async function notifyOwner(config) {
-  await ensureDataDir();
   const message = buildOwnerNotification(config);
-  let sent = false;
 
   try {
-    sent = await sendOwnerEmail(config, message);
+    return await sendOwnerEmail(config, message);
   } catch (error) {
     console.error('Owner email failed:', error?.message || error);
+    return false;
   }
-
-  await fs.appendFile(notificationLogPath, `${message}\nEmail sent: ${sent ? 'yes' : 'no'}\n\n`);
-  await ensureDatabaseDir();
-  await fs.appendFile(organizationNotificationLogPath, `${message}\nEmail sent: ${sent ? 'yes' : 'no'}\n\n`);
-  return sent;
 }
 
 async function refreshRagIndex() {
@@ -743,31 +728,18 @@ async function readJsonFile(filePath, fallback) {
   }
 }
 
-async function readTextTail(filePath, maxLength = 8000) {
-  try {
-    const content = await fs.readFile(filePath, 'utf8');
-    return content.slice(-maxLength);
-  } catch (error) {
-    if (error.code !== 'ENOENT') {
-      console.error(`Failed to read ${filePath}:`, error?.message || error);
-    }
-    return '';
-  }
-}
-
 async function getKnowledgeInventory() {
   await ensureKnowledgeDir();
-  const entries = await fs.readdir(knowledgeDir, { withFileTypes: true });
-  const files = await Promise.all(entries
-    .filter((entry) => entry.isFile())
-    .map(async (entry) => {
-      const filePath = path.join(knowledgeDir, entry.name);
+  const knowledgeFiles = await collectAccessFiles(knowledgeDir);
+  const files = await Promise.all(knowledgeFiles
+    .map(async (name) => {
+      const filePath = path.join(knowledgeDir, name);
       const stats = await fs.stat(filePath);
       return {
-        name: entry.name,
+        name,
         size: stats.size,
         updatedAt: stats.mtime.toISOString(),
-        indexed: ragIndex.files.includes(entry.name)
+        indexed: ragIndex.files.includes(name)
       };
     }));
 
@@ -775,17 +747,20 @@ async function getKnowledgeInventory() {
 }
 
 async function buildMonitorSnapshot() {
-  const [dataJson, organizationsJson, knowledgeFiles, notificationLog] = await Promise.all([
-    readJsonFile(databaseDataPath, { websites: [], updatedAt: null }),
-    readJsonFile(organizationsPath, { organizations: [], updatedAt: null }),
-    getKnowledgeInventory(),
-    readTextTail(organizationNotificationLogPath)
-  ]);
+  const knowledgeFiles = await getKnowledgeInventory();
 
   return {
     generatedAt: new Date().toISOString(),
-    database: dataJson,
-    organizations: organizationsJson.organizations || [],
+    database: {
+      directory: 'Database',
+      platformFolders: organizationRegistry.map((organization) => ({
+        folder: getPlatformStoragePaths(organization).folderName,
+        basicInfoFile: `${getPlatformStoragePaths(organization).folderName}/basic_info.json`,
+        conversationFile: organization.conversationLog?.jsonFile || `${getPlatformStoragePaths(organization).folderName}/conversation.json`,
+        detailFile: `${getPlatformStoragePaths(organization).folderName}/detail.txt`
+      }))
+    },
+    organizations: organizationRegistry,
     knowledge: {
       directory: 'knowledge',
       files: knowledgeFiles,
@@ -796,8 +771,7 @@ async function buildMonitorSnapshot() {
     behavior: {
       registeredCount: organizationRegistry.length,
       activeCount: organizationRegistry.filter((organization) => organization.status === 'active').length,
-      latestRegistration: organizationRegistry[organizationRegistry.length - 1] || null,
-      notificationLog
+      latestRegistration: organizationRegistry[organizationRegistry.length - 1] || null
     }
   };
 }
@@ -809,7 +783,6 @@ Institute: ${organization.instituteName}
 Platform URL: ${organization.platformUrl}
 Organization type: ${organization.organizationType || 'Not provided'}
 Service plan: ${organization.servicePlan || 'AI WebApp Personalized Chat Assistant'}
-Platform purpose: ${organization.platformSummary}
 
 `
     : '';
@@ -924,7 +897,7 @@ function generateKnowledgeReply(message, matches, organization = null) {
   }
 
   if (organization) {
-    return `I can help with ${organization.instituteName}. ${trimSentence(organization.platformSummary || 'Ask me about this platform, its products, services, or details from its registered website materials.', 360)}`;
+    return `I can help with ${organization.instituteName}, but I could not find an answer in that platform's knowledge materials.`;
   }
 
   return 'I can only help with this platform, and I could not find an answer in the uploaded platform materials.';
@@ -961,12 +934,12 @@ app.get('/access/knowledge', (req, res) => {
   renderAccessDirectory(res, 'Knowledge', '/access/knowledge', knowledgeDir);
 });
 
-app.get('/access/database/:file', (req, res) => {
-  res.sendFile(path.join(databaseDir, path.basename(req.params.file)));
+app.get('/access/database/*', (req, res) => {
+  sendAccessFile(res, databaseDir, req.params[0]);
 });
 
-app.get('/access/knowledge/:file', (req, res) => {
-  res.sendFile(path.join(knowledgeDir, path.basename(req.params.file)));
+app.get('/access/knowledge/*', (req, res) => {
+  sendAccessFile(res, knowledgeDir, req.params[0]);
 });
 
 app.use(express.static(path.join(__dirname, 'public')));
@@ -993,13 +966,17 @@ app.post('/api/chat', async (req, res) => {
     }
 
     const organizationSources = organization
-      ? [organization.knowledge?.textFile, organization.knowledge?.jsonFile].filter(Boolean)
+      ? [
+          organization.knowledge?.detailFile,
+          organization.knowledge?.textFile,
+          organization.knowledge?.conversationFile,
+          organization.knowledge?.jsonFile
+        ].filter(Boolean)
       : null;
     const matches = ragEnabled
       ? retrieveRelevantChunks(ragIndex, message, ragTopK, organizationSources ? { sources: organizationSources } : {})
       : [];
-    const organizationContext = organization ? buildPlatformProfile(organization) : '';
-    const ragContext = [organizationContext, formatContext(matches)].filter(Boolean).join('\n\n');
+    const ragContext = formatContext(matches);
 
     if (ragEnabled && !matches.length && !organization) {
       return res.json({
@@ -1161,7 +1138,6 @@ app.post('/api/platform/setup', async (req, res) => {
       knowledge: collectedKnowledge
     });
     organization.integrationCode = config.integrationCode;
-    await saveOrganizationRegistry();
     const emailSent = await notifyOwner(organization);
     const index = await refreshRagIndex();
 
@@ -1190,7 +1166,7 @@ app.post('/api/platform/setup', async (req, res) => {
       })),
       notification: emailSent
         ? 'Owner notification email sent.'
-        : 'Owner notification was recorded in data/owner-notifications.log. Configure SMTP settings to send real email.',
+        : 'Configure SMTP settings to send owner notification emails.',
       embedScript: `${getPublicBaseUrl(req)}/embed.js`,
       integrationCode: organization.integrationCode,
       installationInstructions: 'Copy this integration code and paste it before the closing </body> tag on the client website.',
