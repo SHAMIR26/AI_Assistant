@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Accounts - LICONOR AI</title>
+    <style>
+        *{box-sizing:border-box;margin:0;padding:0;font-family:Inter,system-ui,Segoe UI,Arial,sans-serif;}
+        body{min-height:100vh;background:#060812;color:#edf2fb;}
+        .page-container{width:92%;max-width:1100px;margin:0 auto;padding:32px 0;}
+        .topbar{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;padding:18px 0;}
+        .topbar .brand{font-size:1.6rem;font-weight:700;letter-spacing:.08em;color:#ffffff;text-transform:uppercase;}
+        .topbar .links{display:flex;gap:18px;flex-wrap:wrap;}
+        .topbar .links a{color:#e5e7eb;text-decoration:none;font-weight:500;transition:.2s;}
+        .topbar .links a:hover{color:#60a5fa;}
+        .hero{padding:40px 0;}
+        .hero h1{font-size:2.8rem;margin-bottom:14px;}
+        .hero p{max-width:760px;color:#cbd5e1;line-height:1.8;margin-bottom:24px;}
+        .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:20px;margin-bottom:32px;}
+        .stat-card{background:rgba(15,23,42,.95);border:1px solid rgba(148,163,184,.14);border-radius:24px;padding:24px;box-shadow:0 24px 60px rgba(0,0,0,.14);}
+        .stat-card h2{font-size:2.6rem;color:#60a5fa;margin-bottom:8px;}
+        .stat-card p{color:#cbd5e1;line-height:1.7;}
+        .table-card{background:rgba(15,23,42,.95);border:1px solid rgba(148,163,184,.14);border-radius:28px;padding:24px;box-shadow:0 30px 80px rgba(0,0,0,.16);overflow-x:auto;}
+        table{width:100%;border-collapse:collapse;min-width:680px;}
+        th,td{padding:16px 18px;text-align:left;border-bottom:1px solid rgba(255,255,255,.07);}
+        th{font-weight:700;color:#cbd5e1;text-transform:uppercase;letter-spacing:.08em;font-size:.88rem;}
+        td{color:#e2e8f0;font-size:1rem;}
+        tbody tr:hover{background:rgba(96,165,250,.06);}
+        .empty-state{padding:36px 24px;border-radius:20px;background:rgba(255,255,255,.04);border:1px dashed rgba(148,163,184,.25);color:#cbd5e1;text-align:center;}
+        .note{margin-top:24px;color:#94a3b8;line-height:1.75;}
+        .button-row{margin-top:20px;display:flex;flex-wrap:wrap;gap:14px;}
+        .button{padding:14px 24px;border:none;border-radius:999px;background:linear-gradient(135deg,#2563eb,#9333ea);color:#fff;font-weight:700;cursor:pointer;transition:.2s;text-decoration:none;display:inline-flex;align-items:center;}
+        .button:hover{transform:translateY(-2px);}
+        @media(max-width:768px){.hero h1{font-size:2.2rem;}.topbar{gap:14px;}.table-card{padding:18px;}.th,td{padding:12px 14px;}}
+    </style>
+</head>
+<body>
+    <div class="page-container">
+        <header class="topbar">
+            <div class="brand">LICONR AI Accounts</div>
+            <div class="links">
+                <a href="home.html">Home</a>
+                <a href="payment.html">Payment</a>
+            </div>
+        </header>
+
+        <section class="hero">
+            <h1>Subscription payment records</h1>
+            <p>When a client completes a payment, their name, email, amount, date, and plan are stored here automatically in your browser. Use this page to review saved invoices and revenue totals.</p>
+        </section>
+
+        <section class="stats" aria-label="summary metrics">
+            <div class="stat-card">
+                <h2 id="totalClients">0</h2>
+                <p>Total subscriptions</p>
+            </div>
+            <div class="stat-card">
+                <h2 id="totalRevenue">$0.00</h2>
+                <p>Total revenue</p>
+            </div>
+            <div class="stat-card">
+                <h2 id="latestDate">—</h2>
+                <p>Most recent payment</p>
+            </div>
+        </section>
+
+        <section class="table-card">
+            <div id="accountsTable"></div>
+        </section>
+
+        <p class="note">Note: This page currently stores records locally in the browser using localStorage. For server-side persistence and real invoice delivery, integrate a backend database and an email provider.</p>
+        <div class="button-row">
+            <a class="button" href="payment.html">Create new payment</a>
+        </div>
+    </div>
+
+    <script>
+        const storageKey = 'liconr_payments';
+
+        function formatDate(value) {
+            const date = new Date(value);
+            if (Number.isNaN(date.getTime())) return value;
+            return new Intl.DateTimeFormat('en-US', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }).format(date);
+        }
+
+        function renderAccounts() {
+            const row = document.getElementById('accountsTable');
+            const totalClients = document.getElementById('totalClients');
+            const totalRevenue = document.getElementById('totalRevenue');
+            const latestDate = document.getElementById('latestDate');
+            const stored = JSON.parse(localStorage.getItem(storageKey) || '[]');
+
+            if (!stored.length) {
+                row.innerHTML = '<div class="empty-state"><strong>No payment records yet.</strong><p>Complete a subscription payment on the payment page and the invoice details will appear here.</p></div>';
+                totalClients.textContent = '0';
+                totalRevenue.textContent = '$0.00';
+                latestDate.textContent = '—';
+                return;
+            }
+
+            const total = stored.reduce((sum, item) => sum + parseFloat(item.amount || 0), 0);
+            const sorted = [...stored].sort((a,b) => new Date(b.date) - new Date(a.date));
+            totalClients.textContent = stored.length;
+            totalRevenue.textContent = '$' + total.toFixed(2);
+            latestDate.textContent = formatDate(sorted[0].date);
+
+            const tableRows = stored.map(item => `
+                <tr>
+                    <td>${item.name}</td>
+                    <td>${item.email}</td>
+                    <td>${item.plan || 'N/A'}</td>
+                    <td>$${parseFloat(item.amount).toFixed(2)}</td>
+                    <td>${formatDate(item.date)}</td>
+                </tr>
+            `).join('');
+
+            row.innerHTML = `
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Email</th>
+                            <th>Plan</th>
+                            <th>Amount</th>
+                            <th>Date</th>
+                        </tr>
+                    </thead>
+                    <tbody>${tableRows}</tbody>
+                </table>
+            `;
+        }
+
+        renderAccounts();
+
+        // If the page was opened after a (mock) checkout, and the returned email
+        // matches a saved account, redirect the user to home.html.
+        (function checkReturnRedirect() {
+            try {
+                const params = new URLSearchParams(window.location.search);
+                if (params.get('paid') === '1' && params.get('email')) {
+                    const returnedEmail = (params.get('email') || '').toLowerCase();
+                    const stored = JSON.parse(localStorage.getItem(storageKey) || '[]');
+                    const exists = stored.some(it => (it.email || '').toLowerCase() === returnedEmail);
+                    if (exists) {
+                        window.location.href = 'home.html';
+                    }
+                }
+            } catch (err) {
+                // ignore
+            }
+        })();
+    </script>
+</body>
+</html>

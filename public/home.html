@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>LICONR AI Chat Assistant</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <main class="app-shell">
+    <section class="chat-panel" aria-label="LICONR AI chat">
+      <header class="chat-header">
+        <div>
+          <h1>LICONR AI Assistant</h1>
+        </div>
+      </header>
+
+      <section class="setup-panel" aria-label="Platform setup">
+        <details id="setup-details" open>
+          <summary>
+            <span>Platform setup</span>
+            <small id="platform-status">Not configured</small>
+          </summary>
+
+          <form id="platform-form" class="platform-form">
+            <div class="form-grid">
+              <label>
+                Institute name
+                <input id="institute-name" name="instituteName" type="text" placeholder="Example Institute" required />
+              </label>
+
+              <label>
+                Platform URL
+                <input id="platform-url" name="platformUrl" type="url" placeholder="https://example.edu" required />
+              </label>
+
+              <label>
+                Owner email
+                <input id="owner-email" name="ownerEmail" type="email" placeholder="owner@example.edu" required />
+              </label>
+
+              <label>
+                Setup contact
+                <input id="contact-name" name="contactName" type="text" placeholder="Your name or team" />
+              </label>
+
+              <label>
+                Organization type
+                <input id="organization-type" name="organizationType" type="text" placeholder="School,Company,Government,Startup..." />
+              </label>
+
+              <label>
+                Plan
+                <select id="plan" name="plan" required>
+                  <option value="Mini">Mini</option>
+                  <option value="Pro">Pro</option>
+                  <option value="Max">Max</option>
+                </select>
+              </label>
+            </div>
+
+            <label>
+              Platform summary
+              <textarea id="platform-summary-input" name="platformSummary" rows="3" placeholder="Describe what the platform is for." required></textarea>
+            </label>
+
+            <label class="terms-check">
+              <input type="checkbox" name="termsAccepted" required />
+              I agree to the LICONR service terms and conditions and confirm setup authority.
+            </label>
+
+            <div class="setup-actions">
+              <button type="submit">Save setup</button>
+            </div>
+
+            <section id="integration-card" class="integration-card" hidden aria-live="polite">
+              <div class="integration-heading">
+                <div>
+                  <span>Website integration code</span>
+                  <small>Paste this as HTML before the closing body tag, outside any existing script block.</small>
+                </div>
+                <button id="copy-integration-code" type="button">Copy code</button>
+              </div>
+              <textarea id="integration-code-output" readonly rows="4" spellcheck="false"></textarea>
+              <p id="integration-copy-status" class="integration-copy-status">Ready to copy after setup.</p>
+            </section>
+
+            <div class="hidden-data">
+              <span id="platform-summary"></span>
+              <code id="embed-code"></code>
+            </div>
+          </form>
+        </details>
+      </section>
+
+      <!-- Result display box — shows integration snippet and chat link after registration -->
+      <div id="chat-window" class="chat-window" aria-live="polite">
+        <div class="empty-state" data-empty-state>
+          <span class="empty-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" role="img">
+              <path d="M7 8h10M7 12h7M21 11.5a8.5 8.5 0 0 1-12.5 7.5L3 20.5l1.5-4.3A8.5 8.5 0 1 1 21 11.5Z" />
+            </svg>
+          </span>
+          <h2>Registration result</h2>
+          <p>Complete the platform setup above. Your integration snippet and chat link will appear here.</p>
+        </div>
+      </div>
+
+    </section>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>

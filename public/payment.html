@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="utf-8" />
+	<meta name="viewport" content="width=device-width,initial-scale=1" />
+	<title>Payment - LICONOR AI</title>
+	<style>
+		body{font-family:Inter,system-ui,Segoe UI,Arial;background:#0b1020;color:#e6eef8;min-height:100vh;display:flex;align-items:center;justify-content:center}
+		.card{background:#0f1724;padding:28px;border-radius:12px;max-width:720px;width:96%;box-shadow:0 8px 30px rgba(0,0,0,0.6)}
+		h1{margin:0 0 12px;font-size:1.6rem}
+		p{color:#9fb1d0}
+		.row{display:flex;gap:12px;margin-top:12px}
+		input[type=text],input[type=email],input[type=number],input[type=url]{width:100%;padding:12px;border-radius:8px;border:1px solid rgba(255,255,255,0.06);background:rgba(255,255,255,0.02);color:inherit}
+		button{padding:12px 16px;border-radius:8px;border:none;cursor:pointer;background:#2563eb;color:#fff;font-weight:600}
+		.muted{color:#94a3b8;font-size:0.95rem;margin-top:8px}
+		label{display:block;margin-top:12px;font-size:0.95rem}
+		.small{font-size:0.9rem;color:#9fb1d0}
+	</style>
+</head>
+<body>
+	<div class="card">
+		<h1>Secure Payment</h1>
+		<form id="payForm">
+			<label>Amount (USD)</label>
+			<input type="number" id="amount" name="amount" min="1" step="0.01" placeholder="55.00" required />
+
+			<label>Full name</label>
+			<input type="text" id="name" name="name" placeholder="Jane Doe" required />
+
+			<label>Email</label>
+			<input type="email" id="email" name="email" placeholder="jane@example.com" required />
+
+			<div class="row" style="margin-top:16px">
+				<button type="submit" id="payBtn">Pay with Payoneer</button>
+			</div>
+		</form>
+	</div>
+
+	<script>
+		// Read amount and plan from URL and lock the amount input when provided
+		(function () {
+			var params = new URLSearchParams(window.location.search);
+			var amt = params.get('amount');
+			var plan = params.get('plan');
+			var amountInput = document.getElementById('amount');
+			if (amt && amountInput) {
+				var num = parseFloat(amt);
+				if (!isNaN(num)) {
+					amountInput.value = num.toFixed(2);
+					amountInput.setAttribute('readonly', 'readonly');
+					amountInput.style.background = 'rgba(255,255,255,0.02)';
+				}
+			}
+			if (plan) {
+				var title = document.querySelector('.card h1');
+				if (title) title.textContent = 'Secure Payment — ' + plan;
+			}
+		})();
+
+		document.getElementById('payForm').addEventListener('submit', async function (e) {
+			e.preventDefault();
+			var btn = document.getElementById('payBtn');
+			btn.disabled = true; btn.textContent = 'Creating payment...';
+
+			var nameVal = document.getElementById('name').value.trim();
+			var emailVal = document.getElementById('email').value.trim();
+			var amountVal = parseFloat(document.getElementById('amount').value).toFixed(2);
+
+			// Check local storage to decide returnUrl before contacting the server
+			var storedBefore = JSON.parse(window.localStorage.getItem('liconr_payments') || '[]');
+			var existsBefore = storedBefore.some(function (it) {
+				return (it.email || '').toLowerCase() === (emailVal || '').toLowerCase();
+			});
+
+			var returnUrl = existsBefore ? (window.location.origin + '/home.html') : (window.location.origin + '/accounts.html');
+
+			var payload = {
+				amount: amountVal,
+				name: nameVal,
+				email: emailVal,
+				currency: 'USD',
+				returnUrl
+			};
+
+			try {
+				var res = await fetch('/create-payoneer-payment', {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify(payload)
+				});
+				if (!res.ok) throw new Error('Server error');
+				var data = await res.json();
+
+				var params = new URLSearchParams(window.location.search);
+				var paymentInfo = {
+					name: nameVal,
+					email: emailVal,
+					amount: amountVal,
+					plan: params.get('plan') || '',
+					date: new Date().toISOString()
+				};
+
+				// Save or update the local record
+				savePaymentRecord(paymentInfo, /*updateIfExists*/ true);
+				sendInvoiceEmail(paymentInfo);
+
+				// Redirect to the checkout URL returned by the server, or fall back to returnUrl
+				if (data && data.url) {
+					window.location.href = data.url;
+				} else {
+					window.location.href = returnUrl;
+				}
+			} catch (err) {
+				alert('Payment creation failed: ' + err.message);
+				btn.disabled = false; btn.textContent = 'Pay with Payoneer';
+			}
+		});
+
+		document.getElementById('payDirect').addEventListener('click', function () {
+			var u = document.getElementById('directLink').value.trim();
+			if (!u) return alert('Paste a Payoneer link first');
+			window.location.href = u;
+		});
+
+		function savePaymentRecord(payment, updateIfExists) {
+			var stored = JSON.parse(window.localStorage.getItem('liconr_payments') || '[]');
+			var email = (payment.email || '').toLowerCase();
+			if (updateIfExists) {
+				var found = false;
+				for (var i = 0; i < stored.length; i++) {
+					if ((stored[i].email || '').toLowerCase() === email) {
+						stored[i] = payment;
+						found = true;
+						break;
+					}
+				}
+				if (!found) stored.push(payment);
+			} else {
+				stored.push(payment);
+			}
+			window.localStorage.setItem('liconr_payments', JSON.stringify(stored));
+		}
+
+		function sendInvoiceEmail(payment) {
+			var body = 'LICONR AI Subscription Invoice\n\n' +
+				'Name: ' + payment.name + '\n' +
+				'Email: ' + payment.email + '\n' +
+				'Plan: ' + (payment.plan || 'Standard') + '\n' +
+				'Amount: $' + payment.amount + '\n' +
+				'Date: ' + new Date(payment.date).toLocaleString() + '\n\n' +
+				'Thank you for your purchase.\n' +
+				'Sent by liconr@gmail.com';
+			var mailto = 'mailto:' + encodeURIComponent(payment.email) +
+				'?cc=' + encodeURIComponent('liconr@gmail.com') +
+				'&subject=' + encodeURIComponent('LICONR AI Invoice') +
+				'&body=' + encodeURIComponent(body);
+			window.open(mailto, '_blank');
+		}
+	</script>
+</body>
+</html>
+

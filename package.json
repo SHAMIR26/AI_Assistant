@@ -1,7 +1,7 @@
 {
-  "name": "basic-chatbot",
+  "name": "liconr-backend",
   "version": "1.0.0",
-  "description": "Basic chatbot with frontend chat UI, backend API, and local Ollama AI integration.",
+  "description": "LICONR AI backend and frontend server (merged package)",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
@@ -11,7 +11,8 @@
     "dotenv": "^16.3.1",
     "express": "^4.18.4",
     "nodemailer": "^8.0.7",
-    "pdf-parse": "^2.4.5"
+    "pdf-parse": "^2.4.5",
+    "cors": "^2.8.5"
   },
   "devDependencies": {
     "nodemon": "^3.0.1"

@@ -1041,6 +1041,10 @@ app.get('/access/knowledge/*', (req, res) => {
 app.use(express.static(path.join(__dirname, 'public')));
 app.use('/redulix', express.static(path.join(__dirname, 'Redulix')));
 
+app.get('/home.html', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'home.html'));
+});
+
 app.get('/', (req, res) => {
   res.send('AI Chat Backend is Running!');
 });
@@ -1344,6 +1348,115 @@ app.get('/api/monitor/data', requireMonitorSession, async (req, res) => {
   } catch (error) {
     console.error('Failed to build monitor data:', error?.message || error);
     res.status(500).json({ error: 'Failed to load monitor data.' });
+  }
+});
+
+// --- Simple payments endpoints (lightweight server-side storage + mock checkout) ---
+const paymentsFile = path.join(__dirname, 'payments.json');
+
+async function loadPaymentsFile() {
+  try {
+    const raw = await fs.readFile(paymentsFile, 'utf8');
+    return JSON.parse(raw || '[]');
+  } catch (err) {
+    return [];
+  }
+}
+
+async function savePaymentsFile(payments) {
+  try {
+    await fs.writeFile(paymentsFile, JSON.stringify(payments, null, 2), 'utf8');
+  } catch (err) {
+    console.error('Failed to save payments file:', err?.message || err);
+  }
+}
+
+// Send an invoice email to the payer (if SMTP is configured)
+async function sendInvoiceEmail(payment) {
+  if (!process.env.SMTP_HOST || !process.env.SMTP_USER || !process.env.SMTP_PASS) {
+    console.warn('SMTP not configured; skipping invoice email.');
+    return false;
+  }
+
+  const transporter = nodemailer.createTransport({
+    host: process.env.SMTP_HOST,
+    port: Number(process.env.SMTP_PORT) || 587,
+    secure: process.env.SMTP_SECURE === 'true',
+    auth: {
+      user: process.env.SMTP_USER,
+      pass: process.env.SMTP_PASS
+    }
+  });
+
+  const html = `
+    <h1>LICONR AI Subscription Invoice</h1>
+    <p><strong>Name:</strong> ${escapeHtml(payment.name)}</p>
+    <p><strong>Email:</strong> ${escapeHtml(payment.email)}</p>
+    <p><strong>Plan:</strong> ${escapeHtml(payment.plan || 'Standard')}</p>
+    <p><strong>Amount:</strong> $${escapeHtml(payment.amount)}</p>
+    <p><strong>Date:</strong> ${new Date(payment.date).toLocaleString()}</p>
+    <p>Thank you for your purchase.</p>
+  `;
+
+  await transporter.sendMail({
+    from: process.env.SMTP_FROM || 'abdulgaffarshamir@gmail.com',
+    to: payment.email,
+    cc: process.env.SMTP_FROM || 'abdulgaffarshamir@gmail.com',
+    subject: `LICONR AI Invoice — ${payment.id || ''}`,
+    text: `LICONR AI Invoice\n\nName: ${payment.name}\nEmail: ${payment.email}\nPlan: ${payment.plan || 'Standard'}\nAmount: $${payment.amount}\nDate: ${new Date(payment.date).toLocaleString()}`,
+    html
+  });
+
+  return true;
+}
+
+app.post('/create-payoneer-payment', express.json(), async (req, res) => {
+  try {
+    const { amount, currency, name, email, plan, returnUrl } = req.body || {};
+    if (!name || !email || !amount) return res.status(400).json({ error: 'Missing fields' });
+
+    const payments = await loadPaymentsFile();
+    const payment = {
+      id: `INV-${Date.now()}`,
+      name: String(name).trim(),
+      email: String(email).trim().toLowerCase(),
+      amount: parseFloat(String(amount)).toFixed(2),
+      currency: String(currency || 'USD'),
+      plan: String(plan || 'Standard'),
+      date: new Date().toISOString()
+    };
+
+    const existingIndex = payments.findIndex(p => (p.email || '').toLowerCase() === payment.email);
+    if (existingIndex >= 0) payments[existingIndex] = payment; else payments.push(payment);
+    await savePaymentsFile(payments);
+
+    // Attempt to send invoice email (non-blocking failure will be logged)
+    try { await sendInvoiceEmail(payment); } catch (err) { console.error('Invoice email failed:', err?.message || err); }
+
+    const base = getPublicBaseUrl(req);
+    // Suspend the external Payoneer checkout during testing and redirect directly to home.
+    const checkoutUrl = `${base}/home.html`;
+
+    res.json({ url: checkoutUrl, payment });
+  } catch (err) {
+    console.error('/create-payoneer-payment error:', err?.message || err);
+    res.status(500).json({ error: 'failed' });
+  }
+});
+
+// Mock checkout endpoint: simulates external gateway and redirects back to the returnUrl
+app.get('/complete-payment', async (req, res) => {
+  try {
+    const { email, returnUrl } = req.query || {};
+    const decodedReturn = typeof returnUrl === 'string' ? returnUrl : (getPublicBaseUrl(req) + '/accounts.html');
+
+    // Optionally append query params so the client knows payment completed
+    const sep = decodedReturn.includes('?') ? '&' : '?';
+    const redirectTo = `${decodedReturn}${sep}paid=1&email=${encodeURIComponent(email || '')}`;
+    res.redirect(302, redirectTo);
+  } catch (err) {
+    console.error('/complete-payment error:', err?.message || err);
+    res.status(500).send('Checkout failed');
   }
 });
 

@@ -1,114 +1,646 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>LICONR AI Chat Assistant</title>
-  <link rel="stylesheet" href="style.css" />
+<title>LICONOR AI - AI Assistant For Platforms</title>
+
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+
+<style>
+
+*{
+    margin:0;
+    padding:0;
+    box-sizing:border-box;
+    font-family:'Inter',sans-serif;
+}
+
+html{
+    scroll-behavior:smooth;
+}
+
+body{
+    background:#060812;
+    color:#edf2fb;
+    overflow-x:hidden;
+}
+
+.container{
+    width:90%;
+    max-width:1200px;
+    margin:auto;
+}
+
+body::before{
+    content:'';
+    position:fixed;
+    width:700px;
+    height:700px;
+    background:#2563eb;
+    filter:blur(220px);
+    opacity:.18;
+    top:-250px;
+    left:-180px;
+    z-index:-1;
+}
+
+body::after{
+    content:'';
+    position:fixed;
+    width:700px;
+    height:700px;
+    background:#9333ea;
+    filter:blur(220px);
+    opacity:.14;
+    right:-220px;
+    bottom:-220px;
+    z-index:-1;
+}
+
+nav{
+    position:fixed;
+    top:0;
+    width:100%;
+    z-index:1000;
+    backdrop-filter:blur(18px);
+    background:rgba(6,8,18,.80);
+    border-bottom:1px solid rgba(255,255,255,.08);
+}
+
+.nav-container{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    padding:18px 0;
+}
+
+.logo-container{
+    display:flex;
+    align-items:center;
+    gap:12px;
+}
+
+.logo-text{
+    position:relative;
+    font-size:2rem;
+    font-weight:900;
+    letter-spacing:0.18em;
+    text-transform:uppercase;
+    background:linear-gradient(135deg, #f8fafc 0%, #cbd5e1 15%, #111827 24%, #e5e7eb 34%, #111827 42%, #f1f5f9 52%, #111827 60%, #e2e8f0 70%, #0f172a 100%);
+    -webkit-background-clip:text;
+    -webkit-text-fill-color:transparent;
+    text-shadow:0 1px 0 rgba(255,255,255,0.8), 0 2px 2px rgba(0,0,0,0.35), 0 8px 14px rgba(0,0,0,0.18);
+}
+
+.logo-text::after{
+    content:'';
+    position:absolute;
+    inset:0;
+    background:radial-gradient(circle at 20% 20%, rgba(255,255,255,0.30), transparent 25%), linear-gradient(180deg, rgba(255,255,255,0.18), transparent 45%);
+    mix-blend-mode:screen;
+    pointer-events:none;
+}
+
+.nav-links{
+    display:flex;
+    gap:32px;
+}
+
+.nav-links a{
+    text-decoration:none;
+    color:white;
+    font-weight:500;
+    transition:.3s;
+}
+
+.nav-links a:hover{
+    color:#60a5fa;
+}
+
+.nav-action{
+    padding:14px 28px;
+    border-radius:999px;
+    background:linear-gradient(135deg,#2563eb,#9333ea);
+    color:white;
+    border:none;
+    cursor:pointer;
+    font-weight:700;
+    transition:.3s;
+}
+
+.nav-action:hover{
+    transform:translateY(-2px);
+}
+
+.hero{
+    min-height:100vh;
+    display:grid;
+    align-items:center;
+    padding-top:120px;
+}
+
+.hero-grid{
+    display:grid;
+    grid-template-columns:1.1fr .9fr;
+    gap:50px;
+    align-items:center;
+}
+
+.hero-copy{
+    max-width:620px;
+}
+
+.hero-logo{
+    margin-bottom:25px;
+}
+
+.hero-logo img{
+    width:220px;
+    max-width:80%;
+    animation:floatLogo 4s ease-in-out infinite;
+    filter:drop-shadow(0 0 20px rgba(37,99,235,.7)) drop-shadow(0 0 50px rgba(96,165,250,.4));
+}
+
+@keyframes floatLogo{
+    0%,100%{ transform:translateY(0px); }
+    50%{ transform:translateY(-10px); }
+}
+
+.badge{
+    display:inline-flex;
+    align-items:center;
+    gap:10px;
+    padding:12px 20px;
+    border-radius:999px;
+    border:1px solid rgba(96,165,250,.6);
+    color:#a5b4fc;
+    background:rgba(37,99,235,.08);
+    margin-bottom:30px;
+    font-weight:600;
+}
+
+.hero h1{
+    font-size:4rem;
+    font-weight:900;
+    line-height:1.05;
+    margin-bottom:24px;
+}
+
+.gradient-text{
+    background:linear-gradient(90deg,#60a5fa,#a855f7,#22d3ee);
+    -webkit-background-clip:text;
+    -webkit-text-fill-color:transparent;
+}
+
+.hero p{
+    max-width:760px;
+    margin-bottom:35px;
+    color:#cbd5e1;
+    font-size:1.12rem;
+    line-height:1.85;
+}
+
+.hero-buttons{
+    display:flex;
+    flex-wrap:wrap;
+    gap:16px;
+}
+
+.btn{
+    padding:16px 34px;
+    border:none;
+    border-radius:14px;
+    cursor:pointer;
+    font-weight:700;
+    font-size:1rem;
+    transition:.3s;
+}
+
+.btn-primary{
+    background:linear-gradient(135deg,#2563eb,#9333ea);
+    color:white;
+}
+
+.btn-primary:hover{
+    transform:translateY(-2px);
+}
+
+.btn-secondary{
+    background:rgba(255,255,255,.08);
+    color:white;
+    border:1px solid rgba(148,163,184,.35);
+}
+
+.hero-media{
+    position:relative;
+    display:flex;
+    justify-content:center;
+}
+
+.mockup-card{
+    background:rgba(15,23,42,.95);
+    border:1px solid rgba(148,163,184,.12);
+    border-radius:32px;
+    padding:35px;
+    width:100%;
+    max-width:520px;
+    box-shadow:0 40px 120px rgba(0,0,0,.25);
+    overflow:hidden;
+}
+
+.mockup-header{
+    display:flex;
+    gap:10px;
+    margin-bottom:24px;
+}
+
+.mockup-dot{
+    width:12px;
+    height:12px;
+    border-radius:50%;
+    background:#60a5fa;
+}
+
+.mockup-window{
+    background:linear-gradient(180deg,rgba(255,255,255,.04),rgba(255,255,255,.02));
+    border:1px solid rgba(255,255,255,.06);
+    border-radius:24px;
+    padding:24px;
+}
+
+.mockup-line{
+    height:14px;
+    border-radius:999px;
+    margin-bottom:16px;
+    background:linear-gradient(90deg, rgba(96,165,250,.85), rgba(135,211,255,.12));
+}
+
+.mockup-line.short{ width:35%; }
+.mockup-line.medium{ width:60%; }
+.mockup-line.long{ width:90%; }
+
+.mockup-tag{
+    display:inline-block;
+    margin-top:16px;
+    padding:10px 16px;
+    background:rgba(96,165,250,.14);
+    border-radius:999px;
+    font-size:.95rem;
+    color:#a5b4fc;
+    font-weight:600;
+}
+
+.section{
+    padding:100px 0;
+}
+
+.section-title{
+    text-align:center;
+    font-size:3rem;
+    margin-bottom:15px;
+}
+
+.section-subtitle{
+    text-align:center;
+    color:#94a3b8;
+    margin-bottom:60px;
+    max-width:720px;
+    margin-left:auto;
+    margin-right:auto;
+}
+
+.stats-grid{
+    display:grid;
+    grid-template-columns:repeat(auto-fit,minmax(220px,1fr));
+    gap:25px;
+}
+
+.stat-card{
+    background:rgba(15,23,42,.95);
+    border:1px solid rgba(148,163,184,.12);
+    border-radius:24px;
+    padding:35px;
+    text-align:center;
+    box-shadow:0 20px 60px rgba(0,0,0,.18);
+}
+
+.stat-card h3{
+    font-size:2.75rem;
+    color:#60a5fa;
+    margin-bottom:12px;
+}
+
+.stat-card p{
+    color:#cbd5e1;
+    line-height:1.75;
+}
+
+.features-grid{
+    display:grid;
+    grid-template-columns:repeat(auto-fit,minmax(250px,1fr));
+    gap:25px;
+}
+
+.feature-card{
+    background:rgba(15,23,42,.95);
+    border-radius:24px;
+    padding:35px;
+    border:1px solid transparent;
+    transition:.3s;
+    box-shadow:0 20px 60px rgba(0,0,0,.12);
+}
+
+.feature-card:hover{
+    border-color:rgba(37,99,235,.45);
+    transform:translateY(-5px);
+}
+
+.feature-card h3{
+    margin-bottom:14px;
+    font-size:1.45rem;
+}
+
+.feature-card p{
+    color:#cbd5e1;
+    line-height:1.8;
+}
+
+.pricing-grid{
+    display:grid;
+    grid-template-columns:repeat(auto-fit,minmax(280px,1fr));
+    gap:30px;
+}
+
+.price-card{
+    background:rgba(15,23,42,.95);
+    border-radius:28px;
+    padding:45px;
+    text-align:center;
+    border:1px solid rgba(148,163,184,.08);
+    box-shadow:0 30px 80px rgba(0,0,0,.16);
+}
+
+.price-card.featured{
+    background:linear-gradient(180deg,rgba(37,99,235,.95),rgba(147,51,234,.95));
+    color:white;
+    border-color:transparent;
+}
+
+.price-card h3{
+    font-size:2rem;
+    margin-bottom:18px;
+}
+
+.price{
+    font-size:4rem;
+    font-weight:800;
+    margin:20px 0;
+}
+
+.price span{
+    font-size:1rem;
+    color:rgba(255,255,255,.75);
+}
+
+.price-card ul{
+    list-style:none;
+    margin:30px 0;
+    padding:0;
+}
+
+.price-card li{
+    margin:14px 0;
+    color:rgba(255,255,255,.9);
+}
+
+.price-btn{
+    width:100%;
+    padding:16px;
+    border:none;
+    border-radius:14px;
+    font-weight:700;
+    cursor:pointer;
+    background:linear-gradient(135deg,#60a5fa,#c084fc);
+    color:white;
+    transition:.3s;
+}
+
+.price-btn:hover{
+    transform:translateY(-2px);
+}
+
+.cta-box{
+    background:linear-gradient(135deg,rgba(37,99,235,.95),rgba(147,51,234,.95));
+    border-radius:30px;
+    text-align:center;
+    padding:80px 40px;
+    box-shadow:0 40px 120px rgba(0,0,0,.25);
+}
+
+.cta-box h2{
+    font-size:3rem;
+    margin-bottom:20px;
+}
+
+.cta-box p{
+    margin-bottom:30px;
+    color:rgba(255,255,255,.9);
+    max-width:720px;
+    margin-left:auto;
+    margin-right:auto;
+    line-height:1.8;
+}
+
+footer{
+    padding:40px;
+    text-align:center;
+    color:#94a3b8;
+    border-top:1px solid rgba(255,255,255,.08);
+}
+
+@media(max-width:1024px){
+    .hero-grid{ grid-template-columns:1fr; }
+    .hero h1{ font-size:3.4rem; }
+}
+
+@media(max-width:768px){
+    .nav-links{ display:none; }
+    .hero{ padding-top:100px; }
+    .hero h1{ font-size:2.5rem; }
+    .hero-copy{ text-align:center; }
+    .hero-media{ justify-content:center; }
+}
+
+</style>
 </head>
+
 <body>
-  <main class="app-shell">
-    <section class="chat-panel" aria-label="LICONR AI chat">
-      <header class="chat-header">
-        <div>
-          <h1>LICONR AI Assistant</h1>
+
+<nav>
+    <div class="container nav-container">
+        <div class="logo-container">
+            <div class="logo-text">LICONR</div>
         </div>
-      </header>
+        <div class="nav-links">
+            <a href="home.html">Home</a>
+            <a href="payment.html">Payment</a>
+            <a href="accounts.html">Accounts</a>
+        </div>
+        <button class="nav-action" onclick="location.href='payment.html'">Get Started</button>
+    </div>
+</nav>
 
-      <section class="setup-panel" aria-label="Platform setup">
-        <details id="setup-details" open>
-          <summary>
-            <span>Platform setup</span>
-            <small id="platform-status">Not configured</small>
-          </summary>
-
-          <form id="platform-form" class="platform-form">
-            <div class="form-grid">
-              <label>
-                Institute name
-                <input id="institute-name" name="instituteName" type="text" placeholder="Example Institute" required />
-              </label>
-
-              <label>
-                Platform URL
-                <input id="platform-url" name="platformUrl" type="url" placeholder="https://example.edu" required />
-              </label>
-
-              <label>
-                Owner email
-                <input id="owner-email" name="ownerEmail" type="email" placeholder="owner@example.edu" required />
-              </label>
-
-              <label>
-                Setup contact
-                <input id="contact-name" name="contactName" type="text" placeholder="Your name or team" />
-              </label>
-
-              <label>
-                Organization type
-                <input id="organization-type" name="organizationType" type="text" placeholder="School,Company,Government,Startup..." />
-              </label>
-
-              <label>
-                Plan
-                <select id="plan" name="plan" required>
-                  <option value="Mini">Mini</option>
-                  <option value="Pro">Pro</option>
-                  <option value="Max">Max</option>
-                </select>
-              </label>
+<section class="hero">
+    <div class="container hero-grid">
+        <div class="hero-copy">
+            <div class="badge">AI Assistant For Websites & Platforms</div>
+            <h1>Launch a <span class="gradient-text">smarter AI assistant</span> for every platform.</h1>
+            <p>LICONR AI helps SaaS products, websites, portals, and enterprise tools deliver faster answers, guided interactions, and 24/7 intelligent support.</p>
+            <div class="hero-buttons">
+                <button class="btn btn-primary">See How It Works</button>
             </div>
-
-            <label>
-              Platform summary
-              <textarea id="platform-summary-input" name="platformSummary" rows="3" placeholder="Describe what the platform is for." required></textarea>
-            </label>
-
-            <label class="terms-check">
-              <input type="checkbox" name="termsAccepted" required />
-              I agree to the LICONR service terms and conditions and confirm setup authority.
-            </label>
-
-            <div class="setup-actions">
-              <button type="submit">Save setup</button>
-            </div>
-
-            <section id="integration-card" class="integration-card" hidden aria-live="polite">
-              <div class="integration-heading">
-                <div>
-                  <span>Website integration code</span>
-                  <small>Paste this as HTML before the closing body tag, outside any existing script block.</small>
+        </div>
+        <div class="hero-media">
+            <div class="mockup-card">
+                <div class="mockup-header">
+                    <div class="mockup-dot"></div>
+                    <div class="mockup-dot"></div>
+                    <div class="mockup-dot"></div>
                 </div>
-                <button id="copy-integration-code" type="button">Copy code</button>
-              </div>
-              <textarea id="integration-code-output" readonly rows="4" spellcheck="false"></textarea>
-              <p id="integration-copy-status" class="integration-copy-status">Ready to copy after setup.</p>
-            </section>
-
-            <div class="hidden-data">
-              <span id="platform-summary"></span>
-              <code id="embed-code"></code>
+                <div class="mockup-window">
+                    <div class="mockup-line long"></div>
+                    <div class="mockup-line medium"></div>
+                    <div class="mockup-line short"></div>
+                    <div class="mockup-line long"></div>
+                    <div class="mockup-line medium"></div>
+                    <div class="mockup-tag">AI-powered platform assistant · 99.9% uptime</div>
+                </div>
             </div>
-          </form>
-        </details>
-      </section>
-
-      <!-- Result display box — shows integration snippet and chat link after registration -->
-      <div id="chat-window" class="chat-window" aria-live="polite">
-        <div class="empty-state" data-empty-state>
-          <span class="empty-icon" aria-hidden="true">
-            <svg viewBox="0 0 24 24" role="img">
-              <path d="M7 8h10M7 12h7M21 11.5a8.5 8.5 0 0 1-12.5 7.5L3 20.5l1.5-4.3A8.5 8.5 0 1 1 21 11.5Z" />
-            </svg>
-          </span>
-          <h2>Registration result</h2>
-          <p>Complete the platform setup above. Your integration snippet and chat link will appear here.</p>
         </div>
-      </div>
+    </div>
+</section>
 
-    </section>
-  </main>
+<section class="section stats">
+    <div class="container">
+        <div class="stats-grid">
+            <div class="stat-card">
+                <h3>24/7</h3>
+                <p>Always-on support that answers users instantly, any time of day.</p>
+            </div>
+            <div class="stat-card">
+                <h3>3x</h3>
+                <p>Faster issue resolution and onboarding through contextual guidance.</p>
+            </div>
+            <div class="stat-card">
+                <h3>Global</h3>
+                <p>Multilingual AI responses for customers around the world.</p>
+            </div>
+            <div class="stat-card">
+                <h3>Secure</h3>
+                <p>Enterprise-ready data handling with platform-focused privacy controls.</p>
+            </div>
+        </div>
+    </div>
+</section>
 
-  <script src="app.js"></script>
+<section id="features" class="section">
+    <div class="container">
+        <h2 class="section-title">Built for modern digital experiences</h2>
+        <p class="section-subtitle">LICONR combines smart training, product-aware responses, and elegant design to help users get what they need faster.</p>
+        <div class="features-grid">
+            <div class="feature-card">
+                <h3>Built-in onboarding</h3>
+                <p>Train the assistant on your workflows, FAQs, and docs for faster, more relevant replies.</p>
+            </div>
+            <div class="feature-card">
+                <h3>Conversational AI</h3>
+                <p>Deliver fluent, natural answers while keeping the experience aligned to your brand voice.</p>
+            </div>
+            <div class="feature-card">
+                <h3>Platform friendly</h3>
+                <p>Deploy across websites, product portals, knowledge bases, and internal tools with ease.</p>
+            </div>
+            <div class="feature-card">
+                <h3>Insightful analytics</h3>
+                <p>Track intent, uncover opportunities, and improve your assistant with real user data.</p>
+            </div>
+        </div>
+    </div>
+</section>
+
+<section id="pricing" class="section">
+    <div class="container">
+        <h2 class="section-title">Flexible pricing for every stage</h2>
+        <p class="section-subtitle">Choose the plan that fits your growth, from early launches to enterprise-scale deployments.</p>
+        <div class="pricing-grid">
+                <div class="price-card featured">
+                <h3>Mini</h3>
+                <div class="price">$55 <span>/month</span></div>
+                <ul>
+                    <li>1 Platform</li>
+                    <li>AI Assistant</li>
+                    <li>Website Training</li>
+                    <li>5,000 Conversations</li>
+                    <li>Analytics Dashboard</li>
+                </ul>
+                <button class="price-btn" data-amount="55" data-plan="Mini">Get Started</button>
+            </div>
+            <div class="price-card featured">
+                <h3>Pro</h3>
+                <div class="price">$85 <span>/month</span></div>
+                <ul>
+                    <li>3 Platforms</li>
+                    <li>25,000 Conversations</li>
+                    <li>Multi-Language Support</li>
+                    <li>Human Handoff</li>
+                    <li>Priority Support</li>
+                </ul>
+                <button class="price-btn" data-amount="85" data-plan="Pro">Get Started</button>
+            </div>
+            <div class="price-card featured">
+                <h3>Max</h3>
+                <div class="price">$115 <span>/month</span></div>
+                <ul>
+                    <li>Unlimited Platforms</li>
+                    <li>Unlimited Conversations</li>
+                    <li>API Access</li>
+                    <li>Dedicated Support</li>
+                    <li>Enterprise Features</li>
+                </ul>
+                <button class="price-btn" data-amount="115" data-plan="Max">Get Started</button>
+            </div>
+        </div>
+    </div>
+</section>
+
+<section class="section">
+    <div class="container">
+        <div class="cta-box">
+            <h2>Turn every customer interaction into a faster, smarter experience.</h2>
+            <p>Launch your AI assistant in minutes with guided setup, platform-specific training, and analytics built for growth.</p>
+        </div>
+    </div>
+</section>
+
+<footer id="contact">
+    © 2026 LICONR AI. All Rights Reserved.
+    <a href="access.html">Access</a>
+</footer>
+</footer>
+
+<script>
+// Redirect price buttons to payment page with amount and plan in querystring
+document.querySelectorAll('.price-btn[data-amount]').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+        var amount = btn.dataset.amount;
+        var plan = btn.dataset.plan || '';
+        // build URL relative to current location
+        var url = new URL('payment.html', window.location.href);
+        url.searchParams.set('amount', amount);
+        if (plan) url.searchParams.set('plan', plan);
+        window.location.href = url.href;
+    });
+});
+</script>
+
 </body>
 </html>
