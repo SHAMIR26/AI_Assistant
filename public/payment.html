@@ -72,12 +72,11 @@
 				return (it.email || '').toLowerCase() === (emailVal || '').toLowerCase();
 			});
 
-			var baseUrl = existsBefore ? (window.location.origin + '/home.html') : (window.location.origin + '/accounts.html');
-			var returnUrl = new URL(baseUrl);
-			// If plan was selected, pass it to home.html
 			var urlParams = new URLSearchParams(window.location.search);
 			var plan = urlParams.get('plan');
-			if (plan && baseUrl.includes('/home.html')) {
+			var baseUrl = existsBefore ? (window.location.origin + '/home.html') : (window.location.origin + '/accounts.html');
+			var returnUrl = new URL(baseUrl);
+			if (plan) {
 				returnUrl.searchParams.set('plan', plan);
 			}
 			returnUrl = returnUrl.href;
@@ -87,6 +86,7 @@
 				name: nameVal,
 				email: emailVal,
 				currency: 'USD',
+				plan: plan || '',
 				returnUrl
 			};
 
@@ -150,4 +150,3 @@
 	</script>
 </body>
 </html>
-

@@ -1388,15 +1388,85 @@ async function sendInvoiceEmail(payment) {
     }
   });
 
-  const html = `
-    <h1>LICONR AI Subscription Invoice</h1>
-    <p><strong>Name:</strong> ${escapeHtml(payment.name)}</p>
-    <p><strong>Email:</strong> ${escapeHtml(payment.email)}</p>
-    <p><strong>Plan:</strong> ${escapeHtml(payment.plan || 'Standard')}</p>
-    <p><strong>Amount:</strong> $${escapeHtml(payment.amount)}</p>
-    <p><strong>Date:</strong> ${new Date(payment.date).toLocaleString()}</p>
-    <p>Thank you for your purchase.</p>
-  `;
+  const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>LICONR AI Invoice</title>
+</head>
+<body style="margin:0;padding:0;background:#f1f5f9;font-family:Inter,system-ui,Arial,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="padding:40px 16px;">
+    <tr><td align="center">
+      <table width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,.08);">
+        <!-- Header -->
+        <tr>
+          <td style="background:linear-gradient(135deg,#2563eb,#9333ea);padding:36px 40px;text-align:center;">
+            <p style="margin:0;font-size:2rem;font-weight:900;letter-spacing:.15em;color:#ffffff;text-transform:uppercase;">LICONR AI</p>
+            <p style="margin:8px 0 0;color:rgba(255,255,255,.85);font-size:.95rem;">Subscription Invoice</p>
+          </td>
+        </tr>
+        <!-- Invoice meta -->
+        <tr>
+          <td style="padding:32px 40px 0;">
+            <table width="100%" cellpadding="0" cellspacing="0">
+              <tr>
+                <td style="color:#64748b;font-size:.82rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;">Invoice ID</td>
+                <td align="right" style="color:#1e293b;font-weight:700;font-size:.9rem;">${escapeHtml(payment.id || '')}</td>
+              </tr>
+              <tr><td colspan="2" style="padding:6px 0;border-bottom:1px solid #e2e8f0;"></td></tr>
+              <tr><td style="padding-top:14px;color:#64748b;font-size:.82rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;">Date</td>
+                <td align="right" style="padding-top:14px;color:#1e293b;font-size:.9rem;">${new Date(payment.date).toLocaleString()}</td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+        <!-- Recipient -->
+        <tr>
+          <td style="padding:28px 40px 0;">
+            <p style="margin:0 0 12px;font-size:.82rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.06em;">Bill To</p>
+            <p style="margin:0;font-size:1.05rem;font-weight:700;color:#1e293b;">${escapeHtml(payment.name)}</p>
+            <p style="margin:4px 0 0;color:#475569;font-size:.9rem;">${escapeHtml(payment.email)}</p>
+          </td>
+        </tr>
+        <!-- Line item -->
+        <tr>
+          <td style="padding:28px 40px 0;">
+            <table width="100%" cellpadding="0" cellspacing="0" style="border-radius:10px;overflow:hidden;border:1px solid #e2e8f0;">
+              <tr style="background:#f8fafc;">
+                <th align="left" style="padding:12px 18px;font-size:.78rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.06em;">Description</th>
+                <th align="right" style="padding:12px 18px;font-size:.78rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.06em;">Amount</th>
+              </tr>
+              <tr>
+                <td style="padding:16px 18px;color:#1e293b;font-size:.95rem;">LICONR AI — ${escapeHtml(payment.plan || 'Standard')} Plan<br/><span style="font-size:.82rem;color:#64748b;">Monthly subscription</span></td>
+                <td align="right" style="padding:16px 18px;font-weight:700;font-size:1.05rem;color:#1e293b;">$${escapeHtml(payment.amount)} ${escapeHtml(payment.currency || 'USD')}</td>
+              </tr>
+              <tr style="background:#f8fafc;">
+                <td style="padding:12px 18px;font-weight:700;color:#1e293b;">Total</td>
+                <td align="right" style="padding:12px 18px;font-weight:800;font-size:1.1rem;color:#2563eb;">$${escapeHtml(payment.amount)} ${escapeHtml(payment.currency || 'USD')}</td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+        <!-- Thank you note -->
+        <tr>
+          <td style="padding:28px 40px;">
+            <div style="background:#eff6ff;border-radius:10px;padding:18px 20px;border-left:4px solid #2563eb;">
+              <p style="margin:0;color:#1e40af;font-size:.92rem;line-height:1.6;">Thank you for your purchase! Your subscription is now active. If you have any questions, reply to this email and our team will be happy to help.</p>
+            </div>
+          </td>
+        </tr>
+        <!-- Footer -->
+        <tr>
+          <td style="background:#f8fafc;padding:20px 40px;text-align:center;border-top:1px solid #e2e8f0;">
+            <p style="margin:0;color:#94a3b8;font-size:.8rem;">© ${new Date().getFullYear()} LICONR AI · All Rights Reserved</p>
+          </td>
+        </tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`;
 
   await transporter.sendMail({
     from: process.env.SMTP_FROM || process.env.SMTP_USER,
@@ -1434,8 +1504,10 @@ app.post('/create-payoneer-payment', express.json(), async (req, res) => {
     try { await sendInvoiceEmail(payment); } catch (err) { console.error('Invoice email failed:', err?.message || err); }
 
     const base = getPublicBaseUrl(req);
-    // Suspend the external Payoneer checkout during testing and redirect directly to home.
-    const checkoutUrl = `${base}/home.html`;
+    // Build the redirect URL and include the plan so home.html can lock the select
+    const homeUrl = new URL(`${base}/home.html`);
+    if (payment.plan && payment.plan !== 'Standard') homeUrl.searchParams.set('plan', payment.plan);
+    const checkoutUrl = homeUrl.toString();
 
     res.json({ url: checkoutUrl, payment });
   } catch (err) {
