@@ -72,7 +72,15 @@
 				return (it.email || '').toLowerCase() === (emailVal || '').toLowerCase();
 			});
 
-			var returnUrl = existsBefore ? (window.location.origin + '/home.html') : (window.location.origin + '/accounts.html');
+			var baseUrl = existsBefore ? (window.location.origin + '/home.html') : (window.location.origin + '/accounts.html');
+			var returnUrl = new URL(baseUrl);
+			// If plan was selected, pass it to home.html
+			var urlParams = new URLSearchParams(window.location.search);
+			var plan = urlParams.get('plan');
+			if (plan && baseUrl.includes('/home.html')) {
+				returnUrl.searchParams.set('plan', plan);
+			}
+			returnUrl = returnUrl.href;
 
 			var payload = {
 				amount: amountVal,
@@ -102,7 +110,6 @@
 
 				// Save or update the local record
 				savePaymentRecord(paymentInfo, /*updateIfExists*/ true);
-				sendInvoiceEmail(paymentInfo);
 
 				// Redirect to the checkout URL returned by the server, or fall back to returnUrl
 				if (data && data.url) {
@@ -139,22 +146,6 @@
 				stored.push(payment);
 			}
 			window.localStorage.setItem('liconr_payments', JSON.stringify(stored));
-		}
-
-		function sendInvoiceEmail(payment) {
-			var body = 'LICONR AI Subscription Invoice\n\n' +
-				'Name: ' + payment.name + '\n' +
-				'Email: ' + payment.email + '\n' +
-				'Plan: ' + (payment.plan || 'Standard') + '\n' +
-				'Amount: $' + payment.amount + '\n' +
-				'Date: ' + new Date(payment.date).toLocaleString() + '\n\n' +
-				'Thank you for your purchase.\n' +
-				'Sent by liconr@gmail.com';
-			var mailto = 'mailto:' + encodeURIComponent(payment.email) +
-				'?cc=' + encodeURIComponent('liconr@gmail.com') +
-				'&subject=' + encodeURIComponent('LICONR AI Invoice') +
-				'&body=' + encodeURIComponent(body);
-			window.open(mailto, '_blank');
 		}
 	</script>
 </body>

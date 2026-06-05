@@ -1399,9 +1399,9 @@ async function sendInvoiceEmail(payment) {
   `;
 
   await transporter.sendMail({
-    from: process.env.SMTP_FROM || 'abdulgaffarshamir@gmail.com',
+    from: process.env.SMTP_FROM || process.env.SMTP_USER,
     to: payment.email,
-    cc: process.env.SMTP_FROM || 'abdulgaffarshamir@gmail.com',
+    cc: process.env.SMTP_FROM || process.env.SMTP_USER,
     subject: `LICONR AI Invoice — ${payment.id || ''}`,
     text: `LICONR AI Invoice\n\nName: ${payment.name}\nEmail: ${payment.email}\nPlan: ${payment.plan || 'Standard'}\nAmount: $${payment.amount}\nDate: ${new Date(payment.date).toLocaleString()}`,
     html

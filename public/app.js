@@ -15,10 +15,24 @@ const embeddedClientId = urlParams.get('clientId') || '';
 const embeddedToken = urlParams.get('embedToken') || '';
 const embeddedSiteUrl = urlParams.get('siteUrl') || '';
 const isEmbedded = urlParams.get('embed') === '1';
+const selectedPlan = urlParams.get('plan') || '';
 let setupRefreshTimer = null;
 
 if (isEmbedded) {
   document.body.classList.add('is-embedded');
+}
+
+// If a plan was passed via URL, fix it and disable the select
+if (selectedPlan) {
+  const planSelect = document.getElementById('plan');
+  if (planSelect) {
+    planSelect.value = selectedPlan;
+    planSelect.disabled = true;
+    // Add visual styling to indicate it's locked
+    planSelect.style.opacity = '0.7';
+    planSelect.style.cursor = 'not-allowed';
+    planSelect.style.background = 'rgba(255,255,255,0.02)';
+  }
 }
 
 // Render the registration result card in the display box
