@@ -80,8 +80,8 @@
     host.style.position = 'fixed';
     host.style.right = '20px';
     host.style.bottom = '20px';
-    host.style.width = '56px';
-    host.style.height = '56px';
+    host.style.width = '64px';
+    host.style.height = '64px';
     host.style.zIndex = '2147483647';
     host.style.pointerEvents = 'none';
 
@@ -93,8 +93,8 @@
         position: fixed;
         right: 20px;
         bottom: 20px;
-        width: 56px;
-        height: 56px;
+        width: 64px;
+        height: 64px;
         z-index: 2147483647;
         pointer-events: none;
         font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
@@ -105,29 +105,62 @@
       }
 
       .launcher {
-        width: 56px;
-        height: 56px;
+        width: 64px;
+        height: 64px;
         pointer-events: auto;
         border: 0;
         border-radius: 999px;
         padding: 0;
-        background: #147c72;
-        color: #ffffff;
-        font: 700 26px/1 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-        box-shadow: 0 12px 32px rgba(0, 0, 0, 0.22);
+        background: transparent;
+        box-shadow: 0 8px 28px rgba(0, 60, 180, 0.45), 0 2px 8px rgba(0,0,0,0.5);
         cursor: pointer;
+        transition: transform 0.18s ease, box-shadow 0.18s ease;
+        overflow: hidden;
+        display: flex;
+        align-items: center;
+        justify-content: center;
       }
 
       .launcher:hover {
-        background: #0b5f58;
+        transform: scale(1.08);
+        box-shadow: 0 12px 40px rgba(0, 80, 220, 0.65), 0 4px 12px rgba(0,0,0,0.6);
       }
+
+      .launcher-logo {
+        width: 64px;
+        height: 64px;
+        border-radius: 999px;
+        object-fit: cover;
+        display: block;
+        pointer-events: none;
+      }
+
+      .launcher-logo.is-hidden {
+        display: none;
+      }
+
+      .launcher-close {
+        display: none;
+        width: 64px;
+        height: 64px;
+        align-items: center;
+        justify-content: center;
+        font: 700 22px/1 system-ui, sans-serif;
+        color: #fff;
+        background: radial-gradient(circle at 40% 35%, #1a2a4a 0%, #060c1a 70%);
+        border-radius: 999px;
+        border: 2px solid #1a50cc;
+      }
+
+      .launcher.is-open .launcher-logo { display: none; }
+      .launcher.is-open .launcher-close { display: flex; }
 
       .frame {
         position: fixed;
         right: 20px;
-        bottom: 76px;
+        bottom: 84px;
         width: min(420px, calc(100vw - 40px));
-        height: min(680px, calc(100vh - 110px));
+        height: min(680px, calc(100vh - 120px));
         border: 1px solid rgba(31, 42, 42, 0.16);
         border-radius: 8px;
         box-shadow: 0 24px 70px rgba(0, 0, 0, 0.28);
@@ -169,14 +202,26 @@
     const launcher = document.createElement('button');
     launcher.className = 'launcher';
     launcher.type = 'button';
-    launcher.textContent = 'AI';
     launcher.title = 'Open AI assistant';
     launcher.setAttribute('aria-label', 'Open AI assistant');
     launcher.setAttribute('aria-expanded', 'false');
 
+    const logoImg = document.createElement('img');
+    logoImg.className = 'launcher-logo';
+    logoImg.src = `${baseUrl}/liconr-logo.png`;
+    logoImg.alt = 'LICONR AI';
+    logoImg.draggable = false;
+
+    const closeSpan = document.createElement('span');
+    closeSpan.className = 'launcher-close';
+    closeSpan.setAttribute('aria-hidden', 'true');
+    closeSpan.textContent = '✕';
+
+    launcher.append(logoImg, closeSpan);
+
     launcher.addEventListener('click', function () {
       const isOpen = frame.classList.toggle('is-open');
-      launcher.textContent = isOpen ? 'x' : 'AI';
+      launcher.classList.toggle('is-open', isOpen);
       launcher.title = isOpen ? 'Close AI assistant' : 'Open AI assistant';
       launcher.setAttribute('aria-label', launcher.title);
       launcher.setAttribute('aria-expanded', String(isOpen));
