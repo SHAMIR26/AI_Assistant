@@ -282,23 +282,23 @@ platformForm.addEventListener('submit', async (event) => {
 
   const formData = new FormData(platformForm);
 
-const faqQuestions = formData.getAll('faqQuestion[]').map((value) => String(value || '').trim());
-    const faqAnswers = formData.getAll('faqAnswer[]').map((value) => String(value || '').trim());
-    const faqs = faqQuestions
-      .map((question, index) => ({ question, answer: faqAnswers[index] || '' }))
-      .filter((faq) => faq.question || faq.answer);
+  const faqQuestions = formData.getAll('faqQuestion[]').map((value) => String(value || '').trim());
+  const faqAnswers = formData.getAll('faqAnswer[]').map((value) => String(value || '').trim());
+  const faqs = faqQuestions
+    .map((question, index) => ({ question, answer: faqAnswers[index] || '' }))
+    .filter((faq) => faq.question || faq.answer);
 
-    const payload = {
-      instituteName: formData.get('instituteName'),
-      platformUrl: formData.get('platformUrl'),
-      ownerEmail: formData.get('ownerEmail'),
-      contactName: formData.get('contactName'),
-      organizationType: formData.get('organizationType'),
-      plan: formData.get('plan'),
-      servicePlan: formData.get('servicePlan'),
-      platformSummary: formData.get('platformSummary'),
-      termsAccepted: formData.get('termsAccepted') === 'on',
-      faqs
+  const payload = {
+    instituteName: formData.get('instituteName'),
+    platformUrl: formData.get('platformUrl'),
+    ownerEmail: formData.get('ownerEmail'),
+    contactName: formData.get('contactName'),
+    organizationType: formData.get('organizationType'),
+    plan: formData.get('plan'),
+    servicePlan: formData.get('servicePlan'),
+    platformSummary: formData.get('platformSummary'),
+    termsAccepted: formData.get('termsAccepted') === 'on',
+    faqs
   };
 
   // Setup abort controller for this request
