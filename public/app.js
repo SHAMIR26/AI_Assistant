@@ -16,7 +16,50 @@ const embeddedToken = urlParams.get('embedToken') || '';
 const embeddedSiteUrl = urlParams.get('siteUrl') || '';
 const isEmbedded = urlParams.get('embed') === '1';
 const selectedPlan = urlParams.get('plan') || '';
+const faqList = document.getElementById('faq-list');
+const addFaqButton = document.getElementById('add-faq-button');
+let faqIndex = 1;
 let setupRefreshTimer = null;
+
+function refreshFaqLabels() {
+  const items = Array.from(faqList?.querySelectorAll('.faq-item') || []);
+  items.forEach((item, index) => {
+    const questionLabel = item.querySelector('.faq-question-label');
+    if (questionLabel) {
+      questionLabel.firstChild.textContent = `${index + 1}. FAQ question`;
+    }
+  });
+}
+
+function attachFaqRemoveHandler(item) {
+  const removeButton = item.querySelector('.faq-remove-button');
+  if (!removeButton) return;
+
+  removeButton.addEventListener('click', () => {
+    item.remove();
+    refreshFaqLabels();
+  });
+}
+
+function createFaqItem() {
+  faqIndex += 1;
+  const item = document.createElement('div');
+  item.className = 'faq-item';
+  item.innerHTML = `
+    <label class="faq-question-label">
+      ${faqIndex}. FAQ question
+      <input type="text" name="faqQuestion[]" placeholder="What should the assistant answer?" />
+    </label>
+    <label>
+      Answer
+      <textarea name="faqAnswer[]" rows="3" placeholder="Provide the answer the assistant should use."></textarea>
+    </label>
+    <button type="button" class="faq-remove-button">Remove</button>
+  `;
+
+  attachFaqRemoveHandler(item);
+  faqList?.appendChild(item);
+}
 
 if (isEmbedded) {
   document.body.classList.add('is-embedded');
@@ -34,6 +77,13 @@ if (selectedPlan) {
     planSelect.style.background = 'rgba(255,255,255,0.02)';
   }
 }
+
+Array.from(faqList?.querySelectorAll('.faq-item') || []).forEach((item, index) => {
+  faqIndex = Math.max(faqIndex, index + 1);
+  attachFaqRemoveHandler(item);
+});
+
+addFaqButton?.addEventListener('click', createFaqItem);
 
 // Render the registration result card in the display box
 function showResultCard({ instituteName, chatLink, integrationCode }) {
@@ -225,17 +275,23 @@ platformForm.addEventListener('submit', async (event) => {
 
   const formData = new FormData(platformForm);
 
-  const payload = {
-    instituteName: formData.get('instituteName'),
-    platformUrl: formData.get('platformUrl'),
-    ownerEmail: formData.get('ownerEmail'),
-    contactName: formData.get('contactName'),
-    organizationType: formData.get('organizationType'),
-    plan: formData.get('plan'),
-    servicePlan: formData.get('servicePlan'),
-    platformSummary: formData.get('platformSummary'),
-    platformActivities: formData.get('platformActivities'),
-    termsAccepted: formData.get('termsAccepted') === 'on'
+const faqQuestions = formData.getAll('faqQuestion[]').map((value) => String(value || '').trim());
+    const faqAnswers = formData.getAll('faqAnswer[]').map((value) => String(value || '').trim());
+    const faqs = faqQuestions
+      .map((question, index) => ({ question, answer: faqAnswers[index] || '' }))
+      .filter((faq) => faq.question || faq.answer);
+
+    const payload = {
+      instituteName: formData.get('instituteName'),
+      platformUrl: formData.get('platformUrl'),
+      ownerEmail: formData.get('ownerEmail'),
+      contactName: formData.get('contactName'),
+      organizationType: formData.get('organizationType'),
+      plan: formData.get('plan'),
+      servicePlan: formData.get('servicePlan'),
+      platformSummary: formData.get('platformSummary'),
+      termsAccepted: formData.get('termsAccepted') === 'on',
+      faqs
   };
 
   setPlatformFormDisabled(true);

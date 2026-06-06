@@ -121,6 +121,69 @@ body {
   line-height: 1.45;
 }
 
+.faq-section {
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: rgba(15, 23, 42, 0.95);
+}
+
+.faq-section-heading {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.faq-section-heading small {
+  color: var(--text-muted);
+  font-size: 0.86rem;
+  font-weight: 500;
+}
+
+.faq-list {
+  display: grid;
+  gap: 14px;
+}
+
+.faq-item {
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid rgba(148, 163, 184, 0.14);
+  border-radius: 12px;
+  background: rgba(8, 12, 20, 0.8);
+}
+
+.faq-item label {
+  display: grid;
+  gap: 8px;
+  font-weight: 700;
+}
+
+.faq-remove-button,
+.faq-add-button {
+  width: fit-content;
+  padding: 10px 16px;
+  border: none;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #2563eb, #9333ea);
+  color: #fff;
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.faq-remove-button {
+  align-self: flex-start;
+  background: #111827;
+}
+
+.faq-remove-button:hover,
+.faq-add-button:hover {
+  opacity: 0.95;
+}
+
 .platform-form input:focus,
 .platform-form select:focus,
 .platform-form textarea:focus {
@@ -1487,6 +1550,66 @@ footer{
     border-top:1px solid rgba(255,255,255,.08);
     background:rgba(2,7,20,.72);
     backdrop-filter:blur(18px);
+}
+
+.footer-copy {
+    margin-bottom: 14px;
+    font-size: 0.95rem;
+}
+
+.footer-social {
+    display: inline-flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 10px;
+    margin-bottom: 16px;
+}
+
+.footer-social a {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 14px;
+    border-radius: 999px;
+    background: rgba(255,255,255,0.05);
+    color: #cbd5e1;
+    text-decoration: none;
+    font-weight: 700;
+    transition: background 160ms ease, transform 160ms ease, color 160ms ease;
+}
+
+.footer-social a:hover {
+    background: rgba(16,184,129,0.16);
+    transform: translateY(-1px);
+}
+
+.footer-social svg {
+    width: 18px;
+    height: 18px;
+    flex-shrink: 0;
+}
+
+.footer-social .social-youtube,
+.footer-social .social-linkedin,
+.footer-social .social-twitter,
+.footer-social .social-reddit {
+    color: #cbd5e1;
+}
+
+.footer-social .social-youtube {
+    color: #FF0000;
+}
+
+.footer-social .social-linkedin {
+    color: #0A66C2;
+}
+
+.footer-social .social-twitter {
+    color: #1DA1F2;
+}
+
+.footer-social .social-reddit {
+    color: #FF4500;
 }
 
 @media(max-width:1024px){

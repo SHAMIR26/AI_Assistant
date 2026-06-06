@@ -362,14 +362,23 @@ async function collectWebsiteKnowledge(config) {
     pages
   };
 
+  const faqSection = Array.isArray(config.faqs) && config.faqs.length
+    ? ['FAQs:', ...config.faqs.map((faq, index) => {
+        const title = faq.question ? `${index + 1}. ${faq.question}` : `${index + 1}. FAQ`;
+        const answer = faq.answer ? `Answer: ${faq.answer}` : 'Answer: (no answer provided)';
+        return `${title}\n${answer}`;
+      })].join('\n\n')
+    : '';
+
   const textContent = [
     `# ${config.instituteName}`,
     `Platform URL: ${config.platformUrl}`,
     `Collected at: ${collectedAt}`,
     '',
     config.platformSummary ? `Platform summary:\n${config.platformSummary}` : '',
+    faqSection ? `${faqSection}` : '',
     '',
-    pages.map(pageToText).join('\n\n---\n\n')
+    pages.map(pageToText).filter(Boolean).join('\n\n---\n\n')
   ].filter(Boolean).join('\n');
 
   await Promise.all([
@@ -1188,7 +1197,8 @@ app.post('/api/platform/setup', async (req, res) => {
       plan,
       servicePlan,
       platformSummary,
-      termsAccepted
+      termsAccepted,
+      faqs
     } = req.body;
 
     const normalizedUrl = normalizeUrl(platformUrl);
@@ -1205,6 +1215,13 @@ app.post('/api/platform/setup', async (req, res) => {
       });
     }
 
+    const platformFaqs = Array.isArray(faqs)
+      ? faqs.map((faq) => ({
+          question: String(faq?.question || '').trim(),
+          answer: String(faq?.answer || '').trim()
+        })).filter((faq) => faq.question || faq.answer)
+      : [];
+
     const config = {
       clientId: createClientId(instituteName),
       embedToken: createEmbedToken(),
@@ -1216,6 +1233,7 @@ app.post('/api/platform/setup', async (req, res) => {
       plan: normalizePlan(plan),
       servicePlan: (servicePlan || 'AI WebApp Personalized Chat Assistant').trim(),
       platformSummary: platformSummary.trim(),
+      faqs: platformFaqs,
       termsAccepted: Boolean(termsAccepted),
       permissions: {},
       createdAt: new Date().toISOString(),
@@ -1223,27 +1241,18 @@ app.post('/api/platform/setup', async (req, res) => {
     };
 
     config.integrationCode = buildEmbedScript(req, config);
-    let collectedKnowledge = null;
-    try {
-      collectedKnowledge = await collectWebsiteKnowledge(config);
-    } catch (error) {
-      console.error('Website knowledge collection failed:', error?.message || error);
-      collectedKnowledge = {
-        textFile: null,
-        jsonFile: null,
-        pageCount: 0,
-        collectedAt: new Date().toISOString(),
-        errors: [{ url: normalizedUrl, error: error.message || 'Collection failed' }]
-      };
-    }
-
     const organization = await saveOrganization({
       ...config,
-      knowledge: collectedKnowledge
+      knowledge: {
+        folder: null,
+        detailFile: null,
+        textFile: null,
+        pageCount: 0,
+        collectedAt: null,
+        errors: []
+      }
     });
     organization.integrationCode = config.integrationCode;
-    const emailSent = await notifyOwner(organization);
-    const index = await refreshRagIndex();
 
     res.json({
       status: 'ok',
@@ -1270,16 +1279,53 @@ app.post('/api/platform/setup', async (req, res) => {
         updatedAt: item.updatedAt,
         integrationCode: item.integrationCode
       })),
-      notification: emailSent
-        ? 'Owner notification email sent.'
-        : 'Configure SMTP settings to send owner notification emails.',
+      notification: 'Setup saved and queued for knowledge collection. Owner notification and index refresh are running in the background.',
       embedScript: `${getPublicBaseUrl(req)}/embed.js`,
       integrationCode: organization.integrationCode,
       installationInstructions: 'Copy this integration code and paste it before the closing </body> tag on the client website.',
       knowledge: organization.knowledge,
-      fileCount: index.files.length,
-      chunkCount: index.chunks.length
+      fileCount: ragIndex.files.length,
+      chunkCount: ragIndex.chunks.length
     });
+
+    (async () => {
+      try {
+        let collectedKnowledge = null;
+        try {
+          collectedKnowledge = await collectWebsiteKnowledge(config);
+        } catch (error) {
+          console.error('Website knowledge collection failed:', error?.message || error);
+          collectedKnowledge = {
+            textFile: null,
+            jsonFile: null,
+            pageCount: 0,
+            collectedAt: new Date().toISOString(),
+            errors: [{ url: normalizedUrl, error: error.message || 'Collection failed' }]
+          };
+        }
+
+        const updatedOrganization = {
+          ...organization,
+          knowledge: collectedKnowledge,
+          updatedAt: new Date().toISOString()
+        };
+        await saveOrganization(updatedOrganization);
+
+        try {
+          await notifyOwner(updatedOrganization);
+        } catch (error) {
+          console.error('Background owner notification failed:', error?.message || error);
+        }
+
+        try {
+          await refreshRagIndex();
+        } catch (error) {
+          console.error('Background RAG index refresh failed:', error?.message || error);
+        }
+      } catch (error) {
+        console.error('Background setup processing failed:', error?.message || error);
+      }
+    })();
   } catch (error) {
     console.error('Failed to save platform setup:', error?.message || error);
     res.status(500).json({ error: 'Failed to save platform setup.' });

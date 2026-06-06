@@ -14,6 +14,8 @@
       </header>
 
       <section class="setup-panel" aria-label="Platform setup">
+        <details class="setup-details" open>
+          <summary class="setup-summary">Platform Setup</summary>
 
           <form id="platform-form" class="platform-form">
             <div class="form-grid">
@@ -56,6 +58,29 @@
               Platform summary
               <textarea id="platform-summary-input" name="platformSummary" rows="3" placeholder="Describe what the platform is for." required></textarea>
             </label>
+
+            <div class="faq-section">
+              <div class="faq-section-heading">
+                <div>Platform FAQs</div>
+                <small>Enter one FAQ and its answer. Click Add more to add additional FAQs.</small>
+              </div>
+
+              <div id="faq-list" class="faq-list">
+                <div class="faq-item">
+                  <label class="faq-question-label">
+                    1. FAQ question
+                    <input type="text" name="faqQuestion[]" placeholder="What should the assistant answer?" />
+                  </label>
+                  <label>
+                    Answer
+                    <textarea name="faqAnswer[]" rows="3" placeholder="Provide the answer the assistant should use."></textarea>
+                  </label>
+                  <button type="button" class="faq-remove-button">Remove</button>
+                </div>
+              </div>
+
+              <button id="add-faq-button" type="button" class="faq-add-button">Add more</button>
+            </div>
 
             <label class="terms-check">
               <input type="checkbox" name="termsAccepted" required />
