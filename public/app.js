@@ -20,6 +20,7 @@ const faqList = document.getElementById('faq-list');
 const addFaqButton = document.getElementById('add-faq-button');
 let faqIndex = 1;
 let setupRefreshTimer = null;
+let platformSetupAbortController = null;
 
 function refreshFaqLabels() {
   const items = Array.from(faqList?.querySelectorAll('.faq-item') || []);
@@ -273,6 +274,12 @@ async function loadPlatformStatus() {
 platformForm.addEventListener('submit', async (event) => {
   event.preventDefault();
 
+  // Prevent duplicate submissions while a request is in progress
+  if (platformSetupAbortController) {
+    console.warn('Setup request already in progress. Please wait.');
+    return;
+  }
+
   const formData = new FormData(platformForm);
 
 const faqQuestions = formData.getAll('faqQuestion[]').map((value) => String(value || '').trim());
@@ -294,14 +301,25 @@ const faqQuestions = formData.getAll('faqQuestion[]').map((value) => String(valu
       faqs
   };
 
+  // Setup abort controller for this request
+  platformSetupAbortController = new AbortController();
+  const timeoutId = setTimeout(() => platformSetupAbortController.abort(), 30000); // 30 second timeout
+
+  // Update UI to show loading state
   setPlatformFormDisabled(true);
-  platformStatus.textContent = 'Saving setup...';
+  const submitBtn = document.getElementById('submit-btn-text');
+  const submitSpinner = document.getElementById('submit-btn-spinner');
+  const originalBtnText = submitBtn?.textContent || 'Save setup';
+  if (submitBtn) submitBtn.textContent = 'Processing...';
+  if (submitSpinner) submitSpinner.hidden = false;
+  platformStatus.textContent = 'Saving setup... This may take a moment as we process your website.';
 
   try {
     const response = await fetch('/api/platform/setup', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
+      body: JSON.stringify(payload),
+      signal: platformSetupAbortController.signal
     });
     const data = await response.json();
 
@@ -352,7 +370,16 @@ const faqQuestions = formData.getAll('faqQuestion[]').map((value) => String(valu
     chatWindow.appendChild(errCard);
     console.error(error);
   } finally {
+    // Clear timeout and abort controller
+    clearTimeout(timeoutId);
+    platformSetupAbortController = null;
+
+    // Restore UI state
     setPlatformFormDisabled(false);
+    const submitBtn = document.getElementById('submit-btn-text');
+    const submitSpinner = document.getElementById('submit-btn-spinner');
+    if (submitBtn) submitBtn.textContent = 'Save setup';
+    if (submitSpinner) submitSpinner.hidden = true;
   }
 });
 
