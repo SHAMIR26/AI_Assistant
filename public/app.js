@@ -1,7 +1,7 @@
 const chatWindow = document.getElementById('chat-window');
 const emptyState = document.querySelector('[data-empty-state]');
 const platformForm = document.getElementById('platform-form');
-// platformStatus and setupDetails are optional — they may not exist on every page
+// The following elements are optional — they exist only on some pages
 const platformStatus = document.getElementById('platform-status') || null;
 const platformSummary = document.getElementById('platform-summary') || null;
 const setupDetails = document.querySelector('.setup-details') || null;
@@ -303,8 +303,8 @@ platformForm.addEventListener('submit', async (event) => {
   };
 
   // Setup abort controller for this request.
-  // Timeout is generous (120 s) because the server responds immediately after
-  // saving — background crawling does not block the response.
+  // 120 s gives plenty of headroom — the server responds immediately after
+  // saving; background crawling does not block the HTTP response.
   platformSetupAbortController = new AbortController();
   const timeoutId = setTimeout(() => platformSetupAbortController.abort(), 120000);
 
@@ -324,10 +324,23 @@ platformForm.addEventListener('submit', async (event) => {
       body: JSON.stringify(payload),
       signal: platformSetupAbortController.signal
     });
-    const data = await response.json();
+
+    // Safe-parse: a proxy or server error may return an empty body or HTML,
+    // which would cause JSON.parse to throw "Unexpected end of JSON input".
+    let data;
+    const rawText = await response.text();
+    try {
+      data = JSON.parse(rawText);
+    } catch {
+      throw new Error(
+        response.ok
+          ? 'Server returned an unreadable response. Please try again.'
+          : `Server error ${response.status}: ${rawText.slice(0, 120) || 'No response body.'}`
+      );
+    }
 
     if (!response.ok) {
-      throw new Error(data.error || 'Could not save platform setup.');
+      throw new Error(data?.error || `Server error ${response.status}.`);
     }
 
     hydratePlatformStatus({
@@ -348,7 +361,7 @@ platformForm.addEventListener('submit', async (event) => {
 
     const chatLink = `${window.location.origin}/ai_chat.html?clientId=${data.platform.clientId}`;
     if (platformStatus) platformStatus.textContent = 'Saved. Refreshing for next platform in 15 seconds';
-    if (integrationCopyStatus) integrationCopyStatus.textContent = `Copy this code now and paste it as HTML outside any existing script block. This page will refresh for another platform registration in 15 seconds.`;
+    if (integrationCopyStatus) integrationCopyStatus.textContent = 'Copy this code now and paste it as HTML outside any existing script block. This page will refresh for another platform registration in 15 seconds.';
 
     // Show integration snippet and chat link in the result display box
     showResultCard({

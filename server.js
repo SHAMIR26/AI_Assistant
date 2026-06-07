@@ -660,10 +660,11 @@ async function saveOrganization(config) {
   };
   organization.plan = normalizePlan(organization.plan);
   organization.usage = normalizeUsage(organization);
-  const storagePaths = await ensurePlatformFolders(organization);
-  await fs.writeFile(storagePaths.basicInfoPath, `${JSON.stringify(organization, null, 2)}\n`);
 
+  const storagePaths = await ensurePlatformFolders(organization);
   const conversationLog = await ensureConversationLog(organization);
+
+  // Build full organization record before the single final write
   organization.conversationLog = {
     jsonFile: conversationLog.jsonFile,
     textFile: conversationLog.textFile
@@ -676,6 +677,8 @@ async function saveOrganization(config) {
     textFile: `${storagePaths.folderName}/${storagePaths.detailFile}`
   };
   organization.usage = normalizeUsage(organization);
+
+  // Single atomic write — avoids partial state on disk and race conditions
   await fs.writeFile(storagePaths.basicInfoPath, `${JSON.stringify(organization, null, 2)}\n`);
 
   if (existingIndex >= 0) {
@@ -856,8 +859,8 @@ async function refreshRagIndex() {
   return ragIndex;
 }
 
-// Incrementally index only a single platform folder and merge into the
-// existing ragIndex, avoiding a full rebuild on every new registration.
+// Incrementally index only one platform folder and merge into the existing
+// ragIndex — avoids a full rebuild (which grows with every registered platform).
 async function refreshRagIndexForPlatform(platformFolderName) {
   try {
     const platformKnowledgeDir = path.join(knowledgeDir, platformFolderName);
@@ -867,8 +870,7 @@ async function refreshRagIndexForPlatform(platformFolderName) {
       chunkOverlap: process.env.RAG_CHUNK_OVERLAP
     });
 
-    // Re-prefix relative paths with the platform folder name so they match
-    // the full index source paths used during retrieval.
+    // Re-prefix relative paths so they match full-index source paths used during retrieval
     const prefixedChunks = partialIndex.chunks.map((chunk) => ({
       ...chunk,
       id: `${platformFolderName}/${chunk.id}`,
@@ -876,17 +878,16 @@ async function refreshRagIndexForPlatform(platformFolderName) {
     }));
     const prefixedFiles = partialIndex.files.map((f) => `${platformFolderName}/${f}`);
 
-    // Remove any existing chunks for this platform folder then add the fresh ones.
+    // Drop stale chunks for this platform then add fresh ones
     const retained = ragIndex.chunks.filter(
       (chunk) => !chunk.source.startsWith(`${platformFolderName}/`)
     );
     const retainedFiles = ragIndex.files.filter(
       (f) => !f.startsWith(`${platformFolderName}/`)
     );
-
     const merged = [...retained, ...prefixedChunks];
 
-    // Rebuild document-frequency map over the merged set.
+    // Rebuild document-frequency map over the merged set
     const documentFrequency = new Map();
     for (const chunk of merged) {
       for (const token of chunk.termFrequency.keys()) {
@@ -1343,8 +1344,11 @@ app.post('/api/platform/setup', async (req, res) => {
     });
     organization.integrationCode = config.integrationCode;
 
-    res.flushHeaders?.();
-    res.json({
+    // Build the full response payload first, then send it in one go.
+    // Do NOT call res.flushHeaders() before res.json() — on proxied hosts like
+    // Render it opens a chunked transfer that can be cut off before the body
+    // arrives, producing "Unexpected end of JSON input" on the client.
+    const responsePayload = {
       status: 'ok',
       platform: {
         clientId: organization.clientId,
@@ -1369,15 +1373,18 @@ app.post('/api/platform/setup', async (req, res) => {
         updatedAt: item.updatedAt,
         integrationCode: item.integrationCode
       })),
-      notification: 'Setup saved and queued for knowledge collection. Owner notification and index refresh are running in the background.',
+      notification: 'Setup saved. Knowledge collection and index refresh are running in the background.',
       embedScript: `${getPublicBaseUrl(req)}/embed.js`,
       integrationCode: organization.integrationCode,
       installationInstructions: 'Copy this integration code and paste it before the closing </body> tag on the client website.',
       knowledge: organization.knowledge,
       fileCount: ragIndex.files.length,
       chunkCount: ragIndex.chunks.length
-    });
+    };
 
+    res.json(responsePayload);
+
+    // Background work runs after the response is fully flushed
     setImmediate(() => {
       processPlatformSetupBackground(config, organization)
         .catch((error) => console.error('Background setup processing failed:', error?.message || error));

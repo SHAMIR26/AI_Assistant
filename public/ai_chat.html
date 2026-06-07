@@ -98,6 +98,22 @@
         </div>
       </header>
 
+      <!-- Loading screen (shown while verifying platform) -->
+      <div id="chat-loading" class="chat-status-screen">
+        <div class="spinner"></div>
+        <p>Verifying platform…</p>
+      </div>
+
+      <!-- Error screen (shown when platform lookup fails) -->
+      <div id="chat-error" class="chat-status-screen" hidden>
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <circle cx="12" cy="12" r="10"/>
+          <line x1="12" y1="8" x2="12" y2="12"/>
+          <line x1="12" y1="16" x2="12.01" y2="16"/>
+        </svg>
+        <p><strong id="chat-error-title">Error</strong><span id="chat-error-msg"></span></p>
+      </div>
+
       <!-- Chat window (hidden until platform verified) -->
       <div id="chat-window" class="chat-window" aria-live="polite" hidden>
         <div class="empty-state" data-empty-state>
@@ -143,10 +159,16 @@
 
     // ── Helpers ───────────────────────────────────────────────────────────────
     function showError(title, msg) {
-      chatLoading.hidden = true;
-      document.getElementById('chat-error-title').textContent = title;
-      document.getElementById('chat-error-msg').textContent = msg;
-      chatError.hidden = false;
+      const chatLoading = document.getElementById('chat-loading');
+      const chatError = document.getElementById('chat-error');
+      if (chatLoading) chatLoading.hidden = true;
+      if (chatError) {
+        const titleEl = document.getElementById('chat-error-title');
+        const msgEl = document.getElementById('chat-error-msg');
+        if (titleEl) titleEl.textContent = title;
+        if (msgEl) msgEl.textContent = msg;
+        chatError.hidden = false;
+      }
     }
 
     function formatSourceList(sources = []) {
@@ -206,7 +228,7 @@
         }
 
         // Platform verified — show chat UI
-        chatLoading.hidden = true;
+        if (chatLoading) chatLoading.hidden = true;
         chatWindow.hidden = false;
         chatForm.hidden = false;
 
