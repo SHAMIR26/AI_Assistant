@@ -1,6 +1,3 @@
-Server.js: 
-
-
 const path = require('path');
 const fs = require('fs/promises');
 const express = require('express');
@@ -691,6 +688,41 @@ async function saveOrganization(config) {
   return organization;
 }
 
+async function processPlatformSetupBackground(config, organization) {
+  let collectedKnowledge = null;
+  try {
+    collectedKnowledge = await collectWebsiteKnowledge(config);
+  } catch (error) {
+    console.error('Website knowledge collection failed:', error?.message || error);
+    collectedKnowledge = {
+      textFile: null,
+      jsonFile: null,
+      pageCount: 0,
+      collectedAt: new Date().toISOString(),
+      errors: [{ url: normalizeUrl(config.platformUrl), error: error?.message || 'Collection failed' }]
+    };
+  }
+
+  const updatedOrganization = {
+    ...organization,
+    knowledge: collectedKnowledge,
+    updatedAt: new Date().toISOString()
+  };
+  await saveOrganization(updatedOrganization);
+
+  try {
+    await notifyOwner(updatedOrganization);
+  } catch (error) {
+    console.error('Background owner notification failed:', error?.message || error);
+  }
+
+  try {
+    await refreshRagIndex();
+  } catch (error) {
+    console.error('Background RAG index refresh failed:', error?.message || error);
+  }
+}
+
 async function collectAccessFiles(directoryPath, rootPath = directoryPath) {
   const entries = await fs.readdir(directoryPath, { withFileTypes: true });
   const files = [];
@@ -1257,6 +1289,7 @@ app.post('/api/platform/setup', async (req, res) => {
     });
     organization.integrationCode = config.integrationCode;
 
+    res.flushHeaders?.();
     res.json({
       status: 'ok',
       platform: {
@@ -1291,44 +1324,10 @@ app.post('/api/platform/setup', async (req, res) => {
       chunkCount: ragIndex.chunks.length
     });
 
-    (async () => {
-      try {
-        let collectedKnowledge = null;
-        try {
-          collectedKnowledge = await collectWebsiteKnowledge(config);
-        } catch (error) {
-          console.error('Website knowledge collection failed:', error?.message || error);
-          collectedKnowledge = {
-            textFile: null,
-            jsonFile: null,
-            pageCount: 0,
-            collectedAt: new Date().toISOString(),
-            errors: [{ url: normalizedUrl, error: error.message || 'Collection failed' }]
-          };
-        }
-
-        const updatedOrganization = {
-          ...organization,
-          knowledge: collectedKnowledge,
-          updatedAt: new Date().toISOString()
-        };
-        await saveOrganization(updatedOrganization);
-
-        try {
-          await notifyOwner(updatedOrganization);
-        } catch (error) {
-          console.error('Background owner notification failed:', error?.message || error);
-        }
-
-        try {
-          await refreshRagIndex();
-        } catch (error) {
-          console.error('Background RAG index refresh failed:', error?.message || error);
-        }
-      } catch (error) {
-        console.error('Background setup processing failed:', error?.message || error);
-      }
-    })();
+    setImmediate(() => {
+      processPlatformSetupBackground(config, organization)
+        .catch((error) => console.error('Background setup processing failed:', error?.message || error));
+    });
   } catch (error) {
     console.error('Failed to save platform setup:', error?.message || error);
     res.status(500).json({ error: 'Failed to save platform setup.' });
