@@ -1,10 +1,11 @@
 const chatWindow = document.getElementById('chat-window');
 const emptyState = document.querySelector('[data-empty-state]');
 const platformForm = document.getElementById('platform-form');
-const platformStatus = document.getElementById('platform-status');
-const platformSummary = document.getElementById('platform-summary');
-const setupDetails = document.getElementById('setup-details');
-const embedCode = document.getElementById('embed-code');
+// platformStatus and setupDetails are optional — they may not exist on every page
+const platformStatus = document.getElementById('platform-status') || null;
+const platformSummary = document.getElementById('platform-summary') || null;
+const setupDetails = document.querySelector('.setup-details') || null;
+const embedCode = document.getElementById('embed-code') || null;
 const integrationCard = document.getElementById('integration-card');
 const integrationCodeOutput = document.getElementById('integration-code-output');
 const copyIntegrationCode = document.getElementById('copy-integration-code');
@@ -208,27 +209,27 @@ function showIntegrationCode(code, instituteName = 'the client') {
 
 function hydratePlatformStatus(data, options = {}) {
   if (!isEmbedded && !options.showSavedPlatform) {
-    platformStatus.textContent = 'Ready to register a platform';
-    embedCode.textContent = 'Embed code appears after setup.';
+    if (platformStatus) platformStatus.textContent = 'Ready to register a platform';
+    if (embedCode) embedCode.textContent = 'Embed code appears after setup.';
     showIntegrationCode('');
-    setupDetails.open = true;
+    if (setupDetails) setupDetails.open = true;
     return;
   }
 
   if (!data.configured) {
-    platformStatus.textContent = 'Not configured';
-    embedCode.textContent = 'Embed code appears after setup.';
+    if (platformStatus) platformStatus.textContent = 'Not configured';
+    if (embedCode) embedCode.textContent = 'Embed code appears after setup.';
     showIntegrationCode('');
     return;
   }
 
   const platform = data.platform;
   const integrationCode = platform.integrationCode || `<script src="${platform.embedScript}" async defer></script>`;
-  platformStatus.textContent = `${platform.instituteName} configured`;
-  platformSummary.textContent = `Assistant is personalized for ${platform.instituteName} and answers only from platform materials.`;
-  embedCode.textContent = integrationCode;
+  if (platformStatus) platformStatus.textContent = `${platform.instituteName} configured`;
+  if (platformSummary) platformSummary.textContent = `Assistant is personalized for ${platform.instituteName} and answers only from platform materials.`;
+  if (embedCode) embedCode.textContent = integrationCode;
   showIntegrationCode(integrationCode, platform.instituteName);
-  setupDetails.open = !isEmbedded && !data.configured;
+  if (setupDetails) setupDetails.open = !isEmbedded && !data.configured;
 }
 
 copyIntegrationCode?.addEventListener('click', async () => {
@@ -301,18 +302,20 @@ platformForm.addEventListener('submit', async (event) => {
     faqs
   };
 
-  // Setup abort controller for this request
+  // Setup abort controller for this request.
+  // Timeout is generous (120 s) because the server responds immediately after
+  // saving — background crawling does not block the response.
   platformSetupAbortController = new AbortController();
-  const timeoutId = setTimeout(() => platformSetupAbortController.abort(), 30000); // 30 second timeout
+  const timeoutId = setTimeout(() => platformSetupAbortController.abort(), 120000);
 
   // Update UI to show loading state
   setPlatformFormDisabled(true);
   const submitBtn = document.getElementById('submit-btn-text');
   const submitSpinner = document.getElementById('submit-btn-spinner');
   const originalBtnText = submitBtn?.textContent || 'Save setup';
-  if (submitBtn) submitBtn.textContent = 'Processing...';
+  if (submitBtn) submitBtn.textContent = 'Saving...';
   if (submitSpinner) submitSpinner.hidden = false;
-  platformStatus.textContent = 'Saving setup... This may take a moment as we process your website.';
+  if (platformStatus) platformStatus.textContent = 'Saving setup…';
 
   try {
     const response = await fetch('/api/platform/setup', {
@@ -344,8 +347,8 @@ platformForm.addEventListener('submit', async (event) => {
     platformForm.reset();
 
     const chatLink = `${window.location.origin}/ai_chat.html?clientId=${data.platform.clientId}`;
-    platformStatus.textContent = 'Saved. Refreshing for next platform in 15 seconds';
-    integrationCopyStatus.textContent = `Copy this code now and paste it as HTML outside any existing script block. This page will refresh for another platform registration in 15 seconds.`;
+    if (platformStatus) platformStatus.textContent = 'Saved. Refreshing for next platform in 15 seconds';
+    if (integrationCopyStatus) integrationCopyStatus.textContent = `Copy this code now and paste it as HTML outside any existing script block. This page will refresh for another platform registration in 15 seconds.`;
 
     // Show integration snippet and chat link in the result display box
     showResultCard({
@@ -358,7 +361,7 @@ platformForm.addEventListener('submit', async (event) => {
       window.location.reload();
     }, 15000);
   } catch (error) {
-    platformStatus.textContent = 'Setup failed';
+    if (platformStatus) platformStatus.textContent = 'Setup failed';
     // Show error in the result box
     emptyState?.classList.add('is-hidden');
     const existing = chatWindow.querySelector('.result-card');

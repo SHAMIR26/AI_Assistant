@@ -717,7 +717,8 @@ async function processPlatformSetupBackground(config, organization) {
   }
 
   try {
-    await refreshRagIndex();
+    const folderName = getPlatformStoragePaths(updatedOrganization).folderName;
+    await refreshRagIndexForPlatform(folderName);
   } catch (error) {
     console.error('Background RAG index refresh failed:', error?.message || error);
   }
@@ -853,6 +854,59 @@ async function refreshRagIndex() {
 
   console.log(`RAG index ready: ${ragIndex.chunks.length} chunks from ${ragIndex.files.length} files.`);
   return ragIndex;
+}
+
+// Incrementally index only a single platform folder and merge into the
+// existing ragIndex, avoiding a full rebuild on every new registration.
+async function refreshRagIndexForPlatform(platformFolderName) {
+  try {
+    const platformKnowledgeDir = path.join(knowledgeDir, platformFolderName);
+    const partialIndex = await buildRagIndex({
+      knowledgeDir: platformKnowledgeDir,
+      chunkSize: process.env.RAG_CHUNK_SIZE,
+      chunkOverlap: process.env.RAG_CHUNK_OVERLAP
+    });
+
+    // Re-prefix relative paths with the platform folder name so they match
+    // the full index source paths used during retrieval.
+    const prefixedChunks = partialIndex.chunks.map((chunk) => ({
+      ...chunk,
+      id: `${platformFolderName}/${chunk.id}`,
+      source: `${platformFolderName}/${chunk.source}`
+    }));
+    const prefixedFiles = partialIndex.files.map((f) => `${platformFolderName}/${f}`);
+
+    // Remove any existing chunks for this platform folder then add the fresh ones.
+    const retained = ragIndex.chunks.filter(
+      (chunk) => !chunk.source.startsWith(`${platformFolderName}/`)
+    );
+    const retainedFiles = ragIndex.files.filter(
+      (f) => !f.startsWith(`${platformFolderName}/`)
+    );
+
+    const merged = [...retained, ...prefixedChunks];
+
+    // Rebuild document-frequency map over the merged set.
+    const documentFrequency = new Map();
+    for (const chunk of merged) {
+      for (const token of chunk.termFrequency.keys()) {
+        documentFrequency.set(token, (documentFrequency.get(token) || 0) + 1);
+      }
+    }
+
+    ragIndex = {
+      knowledgeDir,
+      files: [...retainedFiles, ...prefixedFiles],
+      chunks: merged,
+      documentFrequency,
+      updatedAt: new Date().toISOString()
+    };
+
+    console.log(`RAG index updated for "${platformFolderName}": ${ragIndex.chunks.length} total chunks from ${ragIndex.files.length} files.`);
+  } catch (error) {
+    console.error(`Incremental RAG index failed for "${platformFolderName}", falling back to full rebuild:`, error?.message || error);
+    await refreshRagIndex();
+  }
 }
 
 async function readJsonFile(filePath, fallback) {
