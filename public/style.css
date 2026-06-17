@@ -75,6 +75,16 @@ body {
   font-weight: 700;
 }
 
+.form-error {
+  display: none;
+  margin-bottom: 18px;
+  padding: 14px 16px;
+  border-radius: 12px;
+  background: #fee2e2;
+  color: #991b1b;
+  border: 1px solid #fecaca;
+}
+
 .platform-form {
   display: grid;
   gap: 14px;

@@ -18,10 +18,27 @@ const embeddedSiteUrl = urlParams.get('siteUrl') || '';
 const isEmbedded = urlParams.get('embed') === '1';
 const selectedPlan = urlParams.get('plan') || '';
 const faqList = document.getElementById('faq-list');
+const formError = document.getElementById('form-error');
 const addFaqButton = document.getElementById('add-faq-button');
 let faqIndex = 1;
 let setupRefreshTimer = null;
 let platformSetupAbortController = null;
+
+function showFormError(message) {
+  if (!formError) {
+    alert(message);
+    return;
+  }
+  formError.textContent = message;
+  formError.style.display = 'block';
+  formError.scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+function clearFormError() {
+  if (!formError) return;
+  formError.textContent = '';
+  formError.style.display = 'none';
+}
 
 function refreshFaqLabels() {
   const items = Array.from(faqList?.querySelectorAll('.faq-item') || []);
@@ -281,13 +298,56 @@ platformForm.addEventListener('submit', async (event) => {
     return;
   }
 
+  clearFormError();
   const formData = new FormData(platformForm);
 
   const faqQuestions = formData.getAll('faqQuestion[]').map((value) => String(value || '').trim());
   const faqAnswers = formData.getAll('faqAnswer[]').map((value) => String(value || '').trim());
-  const faqs = faqQuestions
-    .map((question, index) => ({ question, answer: faqAnswers[index] || '' }))
-    .filter((faq) => faq.question || faq.answer);
+  const faqItems = faqQuestions.map((question, index) => ({
+    question,
+    answer: faqAnswers[index] || ''
+  }));
+  const validFaqs = faqItems.filter((faq) => faq.question && faq.answer);
+  const incompleteFaqCount = faqItems.filter((faq) => (faq.question && !faq.answer) || (!faq.question && faq.answer)).length;
+
+  const requiredFields = ['instituteName', 'platformUrl', 'ownerEmail', 'contactName', 'organizationType', 'platformSummary'];
+  const missingField = requiredFields.find((name) => !String(formData.get(name) || '').trim());
+  if (missingField) {
+    showFormError('Please complete every required field before continuing.');
+    return;
+  }
+
+  if (incompleteFaqCount > 0) {
+    showFormError('Please complete every FAQ with both a question and an answer.');
+    return;
+  }
+
+  if (validFaqs.length < 3) {
+    showFormError('Please provide at least 3 complete FAQs with answers.');
+    return;
+  }
+
+  const faqs = validFaqs;
+  // Read optional assistant fields (name + image). If an image is provided,
+  // convert it to a data URL so the server can persist it as part of the
+  // platform configuration (no multipart upload required).
+  let assistantImageDataUrl = null;
+  try {
+    const assistantFile = formData.get('assistantImage');
+    if (assistantFile && assistantFile.size) {
+      assistantImageDataUrl = await new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = () => resolve(null);
+        reader.readAsDataURL(assistantFile);
+      });
+    }
+  } catch (err) {
+    console.warn('Could not read assistant image:', err);
+    assistantImageDataUrl = null;
+  }
+
+  const assistantName = String(formData.get('assistantName') || '').trim() || 'BLUENINE';
 
   const payload = {
     instituteName: formData.get('instituteName'),
@@ -299,7 +359,9 @@ platformForm.addEventListener('submit', async (event) => {
     servicePlan: formData.get('servicePlan'),
     platformSummary: formData.get('platformSummary'),
     termsAccepted: formData.get('termsAccepted') === 'on',
-    faqs
+    faqs,
+    assistantName,
+    assistantImage: assistantImageDataUrl
   };
 
   // Setup abort controller for this request.

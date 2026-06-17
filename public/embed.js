@@ -219,6 +219,34 @@
 
     launcher.append(logoImg, closeSpan);
 
+    // Try to fetch platform details (assistant name / image) and update the
+    // launcher appearance if the platform has provided them. Non-blocking.
+    (async function tryLoadPlatformAppearance() {
+      try {
+        if (!clientId) return;
+        const params = new URLSearchParams({ clientId });
+        if (embedToken) params.set('embedToken', embedToken);
+        if (siteUrl) params.set('siteUrl', siteUrl);
+        const res = await fetch(`${baseUrl}/api/platform/status?${params.toString()}`);
+        if (!res.ok) return;
+        const data = await res.json();
+        const platform = data?.platform;
+        if (!platform) return;
+        const name = platform.assistantName || platform.instituteName || 'AI Assistant';
+        const image = platform.assistantImage || null;
+        if (image) {
+          logoImg.src = image;
+        } else {
+          logoImg.src = `${baseUrl}/liconr-logo.png`;
+        }
+        logoImg.alt = name;
+        launcher.title = `Open ${name} assistant`;
+        frame.title = `${name} — AI Assistant`;
+      } catch (err) {
+        // ignore errors silently
+      }
+    })();
+
     launcher.addEventListener('click', function () {
       const isOpen = frame.classList.toggle('is-open');
       launcher.classList.toggle('is-open', isOpen);

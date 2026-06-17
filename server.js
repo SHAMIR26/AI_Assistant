@@ -1265,6 +1265,8 @@ app.get('/api/platform/status', (req, res) => {
           updatedAt: activePlatform.updatedAt,
           knowledge: activePlatform.knowledge,
           conversationLog: activePlatform.conversationLog,
+          assistantName: activePlatform.assistantName || 'BLUENINE',
+          assistantImage: activePlatform.assistantImage || null,
           embedScript: `${getPublicBaseUrl(req)}/embed.js`,
           integrationCode: activePlatform.integrationCode || (organization ? buildEmbedScript(req, organization) : null)
         }
@@ -1288,7 +1290,9 @@ app.post('/api/platform/setup', async (req, res) => {
       servicePlan,
       platformSummary,
       termsAccepted,
-      faqs
+      faqs,
+      assistantName,
+      assistantImage
     } = req.body;
 
     const normalizedUrl = normalizeUrl(platformUrl);
@@ -1323,6 +1327,8 @@ app.post('/api/platform/setup', async (req, res) => {
       plan: normalizePlan(plan),
       servicePlan: (servicePlan || 'AI WebApp Personalized Chat Assistant').trim(),
       platformSummary: platformSummary.trim(),
+      assistantName: (assistantName || 'BLUENINE').trim(),
+      assistantImage: assistantImage || null,
       faqs: platformFaqs,
       termsAccepted: Boolean(termsAccepted),
       permissions: {},
@@ -1589,7 +1595,7 @@ async function sendInvoiceEmail(payment) {
   return true;
 }
 
-app.post('/create-payoneer-payment', express.json(), async (req, res) => {
+app.post('/create-paddle-payment', express.json(), async (req, res) => {
   try {
     const { amount, currency, name, email, plan, returnUrl } = req.body || {};
     if (!name || !email || !amount) return res.status(400).json({ error: 'Missing fields' });
@@ -1612,16 +1618,106 @@ app.post('/create-payoneer-payment', express.json(), async (req, res) => {
     // Attempt to send invoice email (non-blocking failure will be logged)
     try { await sendInvoiceEmail(payment); } catch (err) { console.error('Invoice email failed:', err?.message || err); }
 
+    const paddleApiKey = process.env.PADDLE_API_KEY || '';
+    const paddlePriceId = process.env.PADDLE_PRICE_ID || '';
     const base = getPublicBaseUrl(req);
-    // Build the redirect URL and include the plan so home.html can lock the select
+
+    // If Paddle credentials are configured, create a real Paddle checkout session
+    if (paddleApiKey && paddlePriceId) {
+      try {
+        const paddleApiBase = process.env.PADDLE_SANDBOX === 'true'
+          ? 'https://sandbox-api.paddle.com'
+          : 'https://api.paddle.com';
+
+        const successUrl = new URL(`${base}/complete-payment`);
+        successUrl.searchParams.set('email', payment.email);
+        if (returnUrl) successUrl.searchParams.set('returnUrl', returnUrl);
+
+        const paddleRes = await fetch(`${paddleApiBase}/transactions`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${paddleApiKey}`
+          },
+          body: JSON.stringify({
+            items: [{ price_id: paddlePriceId, quantity: 1 }],
+            customer: { email: payment.email },
+            custom_data: { name: payment.name, plan: payment.plan, invoice_id: payment.id },
+            checkout: { url: successUrl.toString() }
+          })
+        });
+
+        if (paddleRes.ok) {
+          const paddleData = await paddleRes.json();
+          const checkoutUrl = paddleData?.data?.checkout?.url;
+          if (checkoutUrl) return res.json({ url: checkoutUrl, payment });
+        } else {
+          const errText = await paddleRes.text();
+          console.error('Paddle API error:', errText);
+        }
+      } catch (paddleErr) {
+        console.error('Paddle request failed:', paddleErr?.message || paddleErr);
+      }
+    }
+
+    // Fallback: redirect straight to home (no live Paddle credentials set)
     const homeUrl = new URL(`${base}/home.html`);
     if (payment.plan && payment.plan !== 'Standard') homeUrl.searchParams.set('plan', payment.plan);
-    const checkoutUrl = homeUrl.toString();
-
-    res.json({ url: checkoutUrl, payment });
+    res.json({ url: homeUrl.toString(), payment });
   } catch (err) {
-    console.error('/create-payoneer-payment error:', err?.message || err);
+    console.error('/create-paddle-payment error:', err?.message || err);
     res.status(500).json({ error: 'failed' });
+  }
+});
+
+// Paddle webhook — verify signature and record completed payments
+app.post('/webhooks/paddle', express.raw({ type: 'application/json' }), async (req, res) => {
+  try {
+    const paddleWebhookSecret = process.env.PADDLE_WEBHOOK_SECRET || '';
+    const signature = req.headers['paddle-signature'] || '';
+
+    if (paddleWebhookSecret && signature) {
+      // Paddle uses a ts=...;h1=... signature format
+      const parts = Object.fromEntries(signature.split(';').map(p => p.split('=')));
+      const ts = parts['ts'] || '';
+      const h1 = parts['h1'] || '';
+      const signed = `${ts}:${req.body.toString()}`;
+      const expected = crypto.createHmac('sha256', paddleWebhookSecret).update(signed).digest('hex');
+      if (expected !== h1) {
+        console.warn('Paddle webhook signature mismatch');
+        return res.status(403).json({ error: 'Invalid signature' });
+      }
+    }
+
+    const event = JSON.parse(req.body.toString());
+    const eventType = event?.event_type || '';
+
+    // Record payment on successful transaction completion
+    if (eventType === 'transaction.completed') {
+      const txn = event?.data || {};
+      const customData = txn?.custom_data || {};
+      const customerEmail = txn?.customer?.email || customData?.email || '';
+      const payments = await loadPaymentsFile();
+      const payment = {
+        id: customData.invoice_id || `INV-${Date.now()}`,
+        name: customData.name || customerEmail,
+        email: String(customerEmail).toLowerCase(),
+        amount: ((txn?.details?.totals?.total || 0) / 100).toFixed(2),
+        currency: txn?.currency_code || 'USD',
+        plan: customData.plan || 'Standard',
+        date: new Date().toISOString(),
+        paddleTransactionId: txn?.id || ''
+      };
+      const existingIndex = payments.findIndex(p => (p.email || '').toLowerCase() === payment.email);
+      if (existingIndex >= 0) payments[existingIndex] = payment; else payments.push(payment);
+      await savePaymentsFile(payments);
+      try { await sendInvoiceEmail(payment); } catch (err) { console.error('Invoice email failed:', err?.message || err); }
+    }
+
+    res.json({ received: true });
+  } catch (err) {
+    console.error('/webhooks/paddle error:', err?.message || err);
+    res.status(500).json({ error: 'Webhook processing failed' });
   }
 });
 

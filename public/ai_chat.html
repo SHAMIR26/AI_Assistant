@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>AI Chat Assistant</title>
+  <title>BLUENINE AI Chat Assistant</title>
   <link rel="stylesheet" href="style.css" />
   <style>
     /* ai_chat.html only — full-screen focused chat, no setup panel */
@@ -91,7 +91,7 @@
 
       <header class="chat-header">
         <div class="chat-header-meta">
-          <div class="logo-text">LICONR AI Chat Assistant</div>
+          <div class="logo-text">BLUENINE AI Chat Assistant</div>
           <p class="chat-header-platform" id="platform-label" hidden>
             Powered by <span id="platform-name-display"></span>
           </p>
@@ -232,11 +232,46 @@
         chatWindow.hidden = false;
         chatForm.hidden = false;
 
-        const name = data.platform?.instituteName;
+        const platform = data.platform || {};
+        const name = platform.instituteName;
+        const assistantName = platform.assistantName || 'BLUENINE';
+        const assistantImage = platform.assistantImage || null;
         if (name) {
           platformNameDisplay.textContent = name;
           platformLabel.hidden = false;
-          document.title = `AI Chat — ${name}`;
+          document.title = `${assistantName} — ${name}`;
+        }
+
+        // Update header title to show assistant name and optional avatar
+        try {
+          const headerTitle = document.querySelector('.logo-text');
+          if (headerTitle) headerTitle.textContent = `${assistantName} — AI Assistant`;
+          if (assistantImage) {
+            const header = document.querySelector('.chat-header');
+            const img = document.createElement('img');
+            img.src = assistantImage;
+            img.alt = assistantName;
+            img.style.width = '36px';
+            img.style.height = '36px';
+            img.style.borderRadius = '999px';
+            img.style.objectFit = 'cover';
+            img.style.marginRight = '10px';
+            const meta = document.querySelector('.chat-header-meta');
+            if (meta && !meta.querySelector('.assistant-avatar')) {
+              img.className = 'assistant-avatar';
+              meta.insertBefore(img, meta.firstChild);
+            }
+          }
+        } catch (err) {
+          // ignore header updates if DOM structure differs
+        }
+
+        // Intro message so visitors notice the assistant immediately
+        try {
+          const intro = `I am ${assistantName} assistant, and I am here to assist and guide you in the ${name || 'platform'}.`;
+          addMessage('bot', intro);
+        } catch (err) {
+          // ignore if addMessage fails
         }
 
       } catch (err) {

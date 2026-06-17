@@ -41,13 +41,29 @@
 			<input type="email" id="email" name="email" placeholder="jane@example.com" required />
 
 			<div class="row" style="margin-top:16px">
-				<button type="submit" id="payBtn">Pay with Payoneer</button>
+				<button type="submit" id="payBtn">Pay with Paddle</button>
 			</div>
 		</form>
 	</div>
 
 	<div id="invoice-section" class="invoice-section hidden"></div>
 
+	<!-- Paddle.js — loaded from Paddle's CDN. Switch to sandbox by changing data-environment -->
+	<script src="https://cdn.paddle.com/paddle/v2/paddle.js"></script>
+	<script>
+		// Initialize Paddle with your client-side token.
+		// In sandbox mode set data-environment="sandbox" on the script tag above,
+		// or call Paddle.Environment.set('sandbox') here before Paddle.Setup().
+		if (window.Paddle) {
+			var paddleClientToken = document.currentScript
+				? document.currentScript.getAttribute('data-paddle-client-token') || ''
+				: '';
+			// Paddle.Setup is called once; the token is your client-side token (starts with "live_" or "test_")
+			// It is safe to embed in HTML — it is NOT your secret API key.
+			// Set PADDLE_CLIENT_TOKEN in your environment and inject it server-side, or hard-code it here.
+			// Example: Paddle.Setup({ token: 'live_XXXXXXXXXXXXXXX' });
+		}
+	</script>
 	<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 	<script>
 		// Read amount and plan from URL and lock the amount input when provided
@@ -104,7 +120,7 @@
 			};
 
 			try {
-				var res = await fetch('/create-payoneer-payment', {
+				var res = await fetch('/create-paddle-payment', {
 					method: 'POST',
 					headers: { 'Content-Type': 'application/json' },
 					body: JSON.stringify(payload)
@@ -132,7 +148,7 @@
 				btn.disabled = true;
 			} catch (err) {
 				alert('Payment creation failed: ' + err.message);
-				btn.disabled = false; btn.textContent = 'Pay with Payoneer';
+				btn.disabled = false; btn.textContent = 'Pay with Paddle';
 			}
 		});
 
@@ -198,7 +214,7 @@
 			actions.className = 'invoice-actions';
 			var continueButton = document.createElement('button');
 			continueButton.type = 'button';
-			continueButton.textContent = 'Continue to Payoneer';
+			continueButton.textContent = 'Continue to Paddle';
 			continueButton.addEventListener('click', function () {
 				window.location.href = checkoutUrl;
 			});

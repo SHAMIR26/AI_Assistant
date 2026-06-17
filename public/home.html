@@ -3,14 +3,14 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>LICONR AI Chat Assistant</title>
+  <title>BLUENINE — Chat Assistant</title>
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
   <main class="app-shell">
-    <section class="chat-panel" aria-label="LICONR AI chat">
+    <section class="chat-panel" aria-label="BLUENINE chat">
       <header class="chat-header">
-          <div class="logo-text">LICONR AI Chat Assistant</div>
+          <div class="logo-text">BLUENINE</div>
       </header>
 
       <section class="setup-panel" aria-label="Platform setup">
@@ -18,6 +18,7 @@
           <summary class="setup-summary">Platform Setup</summary>
 
           <form id="platform-form" class="platform-form">
+            <div id="form-error" class="form-error"></div>
             <div class="form-grid">
               <label>
                 Institute name
@@ -36,12 +37,12 @@
 
               <label>
                 Setup contact
-                <input id="contact-name" name="contactName" type="text" placeholder="Your name or team" />
+                <input id="contact-name" name="contactName" type="text" placeholder="Your name or team" required />
               </label>
 
               <label>
                 Organization type
-                <input id="organization-type" name="organizationType" type="text" placeholder="School,Company,Government,Startup..." />
+                <input id="organization-type" name="organizationType" type="text" placeholder="School,Company,Government,Startup,Non-Profit" required />
               </label>
 
               <label>
@@ -62,18 +63,40 @@
             <div class="faq-section">
               <div class="faq-section-heading">
                 <div>Platform FAQs</div>
-                <small>Enter one FAQ and its answer. Click Add more to add additional FAQs.</small>
+                <small>Provide at least 3 FAQs and answers so the assistant can follow your platform guidance.</small>
               </div>
 
               <div id="faq-list" class="faq-list">
                 <div class="faq-item">
                   <label class="faq-question-label">
                     1. FAQ question
-                    <input type="text" name="faqQuestion[]" placeholder="What should the assistant answer?" />
+                    <input type="text" name="faqQuestion[]" placeholder="What should the assistant answer?" required />
                   </label>
                   <label>
                     Answer
-                    <textarea name="faqAnswer[]" rows="3" placeholder="Provide the answer the assistant should use."></textarea>
+                    <textarea name="faqAnswer[]" rows="3" placeholder="Provide the answer the assistant should use." required></textarea>
+                  </label>
+                  <button type="button" class="faq-remove-button">Remove</button>
+                </div>
+                <div class="faq-item">
+                  <label class="faq-question-label">
+                    2. FAQ question
+                    <input type="text" name="faqQuestion[]" placeholder="Another question users ask" required />
+                  </label>
+                  <label>
+                    Answer
+                    <textarea name="faqAnswer[]" rows="3" placeholder="Provide the answer the assistant should use." required></textarea>
+                  </label>
+                  <button type="button" class="faq-remove-button">Remove</button>
+                </div>
+                <div class="faq-item">
+                  <label class="faq-question-label">
+                    3. FAQ question
+                    <input type="text" name="faqQuestion[]" placeholder="Another common question" required />
+                  </label>
+                  <label>
+                    Answer
+                    <textarea name="faqAnswer[]" rows="3" placeholder="Provide the answer the assistant should use." required></textarea>
                   </label>
                   <button type="button" class="faq-remove-button">Remove</button>
                 </div>
@@ -82,9 +105,24 @@
               <button id="add-faq-button" type="button" class="faq-add-button">Add more</button>
             </div>
 
+            <div class="assistant-section" style="margin-top:18px;">
+              <h3 style="margin:0 0 8px;font-size:1rem;">AI Assistant (optional)</h3>
+              <p style="margin:0 0 10px;color:var(--text-muted);font-size:0.92rem;">Give your assistant a name and an appearance. Both are optional — defaults will be used when left blank.</p>
+
+              <label>
+                Assistant name (optional)
+                <input id="assistant-name" name="assistantName" type="text" placeholder="BLUENINE" />
+              </label>
+
+              <label>
+                Assistant appearance (image upload, optional)
+                <input id="assistant-image" name="assistantImage" type="file" accept="image/*" />
+              </label>
+            </div>
+
             <label class="terms-check">
               <input type="checkbox" name="termsAccepted" required />
-              I agree to the LICONR service terms and conditions and confirm setup authority.
+              I agree to BLUENINE service terms and confirm setup authority.
             </label>
 
             <div class="setup-actions">

@@ -68,7 +68,7 @@
             <div id="accountsTable"></div>
         </section>
 
-        <p class="note">Note: This page currently stores records locally in the browser using localStorage. For server-side persistence and real invoice delivery, integrate a backend database and an email provider.</p>
+        <p class="note">Note: Payment records are stored server-side in <code>payments.json</code> and also mirrored locally in your browser. Completed Paddle transactions are recorded automatically via the <code>/webhooks/paddle</code> endpoint. Configure your Paddle webhook in the Paddle dashboard to point to <code>https://yourdomain.com/webhooks/paddle</code>.</p>
         <div class="button-row">
             <a class="button" href="payment.html">Create new payment</a>
         </div>
