@@ -1147,6 +1147,35 @@ nav{
     border-bottom:1px solid rgba(255,255,255,.08);
 }
 
+.topbar-actions{
+    display:flex;
+    gap:12px;
+    align-items:center;
+}
+
+.topbar-action{
+    display:inline-flex;
+    justify-content:center;
+    align-items:center;
+    width:44px;
+    height:44px;
+    border-radius:14px;
+    background:rgba(255,255,255,0.06);
+    border:1px solid rgba(255,255,255,0.08);
+    transition:transform .2s ease, background .2s ease, border-color .2s ease;
+}
+
+.topbar-action:hover{
+    transform:translateY(-2px);
+    background:rgba(255,255,255,0.15);
+    border-color:rgba(96,165,250,0.35);
+}
+
+.topbar-action img{
+    width:22px;
+    height:22px;
+}
+
 .nav-container{
     display:flex;
     justify-content:space-between;

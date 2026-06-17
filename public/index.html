@@ -13,6 +13,14 @@
       <div class="logo-container">
         <div class="logo-text">BLUENINE</div>
       </div>
+      <div class="topbar-actions" id="header-icons">
+        <a class="topbar-action" href="/profile.html" title="Profile" aria-label="Profile">
+          <img src="public/profile-image.png" alt="Profile" />
+        </a>
+        <a class="topbar-action" href="/settings.html" title="Settings" aria-label="Settings">
+          <img src="public/settings-image.png" alt="Settings" />
+        </a>
+      </div>
     </div>
   </nav>
 
@@ -135,6 +143,28 @@
       window.location.href = url.href;
     });
   });
+
+  async function loadHeaderIconConfig() {
+    try {
+      var response = await fetch('/api/ui/header-icons');
+      if (!response.ok) return;
+      var data = await response.json();
+      if (!data || !Array.isArray(data.icons)) return;
+      var wrapper = document.getElementById('header-icons');
+      if (!wrapper) return;
+      wrapper.innerHTML = data.icons
+        .map(function (item) {
+          return '<a class="topbar-action" href="' + item.href + '" title="' + item.tooltip + '" aria-label="' + item.tooltip + '">' +
+            '<img src="' + item.icon + '" alt="' + item.name + '" />' +
+          '</a>';
+        })
+        .join('');
+    } catch (error) {
+      console.warn('Failed to load header icon config:', error);
+    }
+  }
+
+  document.addEventListener('DOMContentLoaded', loadHeaderIconConfig);
   </script>
 </body>
 </html>

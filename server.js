@@ -31,6 +31,21 @@ const monitorPassword = process.env.MONITOR_PASSWORD || 'S26112007';
 const monitorSessionSecret = process.env.MONITOR_SESSION_SECRET || crypto.randomBytes(32).toString('hex');
 const monitorSessionMaxAgeMs = 1000 * 60 * 60 * 8;
 
+const defaultHeaderIcons = [
+  {
+    name: 'Profile',
+    icon: '/icons/profile.svg',
+    href: '/profile.html',
+    tooltip: 'View profile'
+  },
+  {
+    name: 'Settings',
+    icon: '/icons/settings.svg',
+    href: '/settings.html',
+    tooltip: 'Open settings'
+  }
+];
+
 let ragIndex = {
   knowledgeDir,
   files: [],
@@ -1268,9 +1283,19 @@ app.get('/api/platform/status', (req, res) => {
           assistantName: activePlatform.assistantName || 'BLUENINE',
           assistantImage: activePlatform.assistantImage || null,
           embedScript: `${getPublicBaseUrl(req)}/embed.js`,
-          integrationCode: activePlatform.integrationCode || (organization ? buildEmbedScript(req, organization) : null)
+          integrationCode: activePlatform.integrationCode || (organization ? buildEmbedScript(req, organization) : null),
+          headerIcons: activePlatform.headerIcons || defaultHeaderIcons
         }
       : null
+  });
+});
+
+app.get('/api/ui/header-icons', (req, res) => {
+  const organization = getOrganizationFromRequest(req);
+  const activePlatform = organization || platformConfig;
+  res.json({
+    enabled: true,
+    icons: activePlatform?.headerIcons || defaultHeaderIcons
   });
 });
 
@@ -1329,6 +1354,7 @@ app.post('/api/platform/setup', async (req, res) => {
       platformSummary: platformSummary.trim(),
       assistantName: (assistantName || 'BLUENINE').trim(),
       assistantImage: assistantImage || null,
+      headerIcons: defaultHeaderIcons,
       faqs: platformFaqs,
       termsAccepted: Boolean(termsAccepted),
       permissions: {},
@@ -1366,6 +1392,7 @@ app.post('/api/platform/setup', async (req, res) => {
         servicePlan: organization.servicePlan,
         updatedAt: organization.updatedAt,
         integrationCode: organization.integrationCode,
+        headerIcons: organization.headerIcons || defaultHeaderIcons,
         knowledge: organization.knowledge,
         conversationLog: organization.conversationLog
       },
