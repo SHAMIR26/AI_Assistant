@@ -25,6 +25,7 @@ const defaultPlanLimits = {
 };
 const databaseDir = path.join(__dirname, 'Database');
 const knowledgeDir = path.join(__dirname, 'knowledge');
+const assistantAssetDir = path.join(__dirname, 'public', 'assistant-assets');
 const crawlPageLimit = Math.max(1, Number(process.env.CRAWL_PAGE_LIMIT) || 12);
 const crawlTimeoutMs = Math.max(1500, Number(process.env.CRAWL_TIMEOUT_MS) || 10000);
 const monitorPassword = process.env.MONITOR_PASSWORD || 'S26112007';
@@ -218,6 +219,10 @@ async function ensureDatabaseDir() {
 
 async function ensureKnowledgeDir() {
   await fs.mkdir(knowledgeDir, { recursive: true });
+}
+
+async function ensureAssistantAssetDir() {
+  await fs.mkdir(assistantAssetDir, { recursive: true });
 }
 
 function safeSlug(value) {
@@ -484,6 +489,45 @@ function createClientId(instituteName) {
 
 function createEmbedToken() {
   return crypto.randomBytes(16).toString('hex');
+}
+
+function getAssistantImageExtension(mimeType) {
+  const normalized = String(mimeType || '').toLowerCase();
+  if (normalized === 'image/jpeg' || normalized === 'image/jpg') return 'jpg';
+  if (normalized === 'image/png') return 'png';
+  if (normalized === 'image/webp') return 'webp';
+  if (normalized === 'image/gif') return 'gif';
+  return null;
+}
+
+async function persistAssistantImage(value, clientId) {
+  const image = String(value || '').trim();
+  if (!image) return null;
+  if (/^https?:\/\//i.test(image) || image.startsWith('/assistant-assets/')) return image;
+
+  const match = /^data:(image\/[a-z0-9.+-]+);base64,([a-z0-9+/=\s]+)$/i.exec(image);
+  if (!match) return null;
+
+  const extension = getAssistantImageExtension(match[1]);
+  if (!extension) return null;
+
+  const buffer = Buffer.from(match[2].replace(/\s/g, ''), 'base64');
+  if (!buffer.length || buffer.length > 5 * 1024 * 1024) return null;
+
+  await ensureAssistantAssetDir();
+  const hash = crypto.createHash('sha256').update(buffer).digest('hex').slice(0, 16);
+  const fileName = `${safeSlug(clientId)}-${hash}.${extension}`;
+  await fs.writeFile(path.join(assistantAssetDir, fileName), buffer);
+
+  return `/assistant-assets/${fileName}`;
+}
+
+function resolveAssistantImageUrl(req, value) {
+  const image = String(value || '').trim();
+  if (!image) return null;
+  if (/^(?:https?:|data:)/i.test(image)) return image;
+  if (image.startsWith('/')) return `${getPublicBaseUrl(req)}${image}`;
+  return image;
 }
 
 function normalizePlan(value) {
@@ -1477,7 +1521,7 @@ app.get('/api/platform/status', (req, res) => {
           knowledge: activePlatform.knowledge,
           conversationLog: activePlatform.conversationLog,
           assistantName: activePlatform.assistantName || 'BLUENINE',
-          assistantImage: activePlatform.assistantImage || null,
+          assistantImage: resolveAssistantImageUrl(req, activePlatform.assistantImage),
           embedScript: `${getPublicBaseUrl(req)}/embed.js`,
           integrationCode: activePlatform.integrationCode || (organization ? buildEmbedScript(req, organization) : null),
           headerIcons: activePlatform.headerIcons || defaultHeaderIcons
@@ -1538,8 +1582,11 @@ app.post('/api/platform/setup', async (req, res) => {
         })).filter((faq) => faq.question || faq.answer)
       : [];
 
+    const clientId = createClientId(instituteName);
+    const storedAssistantImage = await persistAssistantImage(assistantImage, clientId);
+
     const config = {
-      clientId: createClientId(instituteName),
+      clientId,
       embedToken: createEmbedToken(),
       instituteName: instituteName.trim(),
       platformUrl: normalizedUrl,
@@ -1550,7 +1597,7 @@ app.post('/api/platform/setup', async (req, res) => {
       servicePlan: (servicePlan || 'AI WebApp Personalized Chat Assistant').trim(),
       platformSummary: platformSummary.trim(),
       assistantName: (assistantName || 'BLUENINE').trim(),
-      assistantImage: assistantImage || null,
+      assistantImage: storedAssistantImage,
       headerIcons: defaultHeaderIcons,
       faqs: platformFaqs,
       agentActions: normalizeAgentActions(agentActions, normalizedUrl),
@@ -1593,7 +1640,9 @@ app.post('/api/platform/setup', async (req, res) => {
         integrationCode: organization.integrationCode,
         headerIcons: organization.headerIcons || defaultHeaderIcons,
         knowledge: organization.knowledge,
-        conversationLog: organization.conversationLog
+        conversationLog: organization.conversationLog,
+        assistantName: organization.assistantName || 'BLUENINE',
+        assistantImage: resolveAssistantImageUrl(req, organization.assistantImage)
       },
       platforms: organizationRegistry.map((item) => ({
         clientId: item.clientId,

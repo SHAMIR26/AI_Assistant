@@ -51,17 +51,29 @@
     });
   }
 
-  function getScriptBaseUrl() {
-    if (embedScriptElement && embedScriptElement.src) {
-      const scriptUrl = new URL(embedScriptElement.src, window.location.href);
+    function getScriptBaseUrl() {
+      if (embedScriptElement && embedScriptElement.src) {
+        const scriptUrl = new URL(embedScriptElement.src, window.location.href);
       scriptUrl.pathname = scriptUrl.pathname.replace(/\/embed\.js$/, '/');
       scriptUrl.search = '';
       scriptUrl.hash = '';
       return scriptUrl.toString().replace(/\/$/, '');
     }
 
-    return window.location.origin;
-  }
+      return window.location.origin;
+    }
+
+    function resolveAssetUrl(value, baseUrl) {
+      const assetUrl = String(value || '').trim();
+      if (!assetUrl) return '';
+      if (/^(?:https?:|data:)/i.test(assetUrl)) return assetUrl;
+
+      try {
+        return new URL(assetUrl, `${baseUrl}/`).toString();
+      } catch (error) {
+        return assetUrl;
+      }
+    }
 
   function injectWidget() {
     if (!document.body) {
@@ -233,7 +245,7 @@
         const platform = data?.platform;
         if (!platform) return;
         const name = platform.assistantName || platform.instituteName || 'AI Assistant';
-        const image = platform.assistantImage || null;
+        const image = resolveAssetUrl(platform.assistantImage, baseUrl) || null;
         if (image) {
           logoImg.src = image;
         } else {
