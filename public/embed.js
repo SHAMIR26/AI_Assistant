@@ -274,6 +274,22 @@
       launcher.setAttribute('aria-expanded', String(isOpen));
     });
 
+    window.addEventListener('message', function (event) {
+      if (event.source !== frame.contentWindow) return;
+
+      const data = event.data || {};
+      if (data.type !== 'platformAssistantAction') return;
+      if (data.action?.type !== 'redirect' || !data.action.url) return;
+
+      try {
+        const targetUrl = new URL(data.action.url, window.location.href);
+        if (!['http:', 'https:'].includes(targetUrl.protocol)) return;
+        window.location.assign(targetUrl.toString());
+      } catch (error) {
+        // Ignore invalid action URLs.
+      }
+    });
+
     root.append(style, frame, launcher);
     document.body.appendChild(host);
   }

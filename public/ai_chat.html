@@ -255,6 +255,26 @@
       chatForm.querySelector('button').disabled = isLoading;
     }
 
+    function performAssistantAction(action) {
+      if (!action || action.type !== 'redirect' || !action.url) return;
+
+      window.setTimeout(() => {
+        try {
+          if (window.parent && window.parent !== window) {
+            window.parent.postMessage({
+              type: 'platformAssistantAction',
+              action
+            }, '*');
+            return;
+          }
+
+          window.location.assign(action.url);
+        } catch (err) {
+          addMessage('bot', `Please open this page: ${action.url}`);
+        }
+      }, 650);
+    }
+
     // ── Verify platform and initialise chat ───────────────────────────────────
     async function init() {
       if (!clientId) {
@@ -348,6 +368,7 @@
         if (!res.ok) throw new Error(data.error || 'Server error');
 
         addMessage('bot', data.reply || 'No reply from server.', data.sources);
+        performAssistantAction(data.action);
       } catch (err) {
         addMessage('bot', err.message || 'There was an error sending your message.');
       } finally {

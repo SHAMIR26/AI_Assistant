@@ -23,6 +23,15 @@ const addFaqButton = document.getElementById('add-faq-button');
 let faqIndex = 1;
 let setupRefreshTimer = null;
 let platformSetupAbortController = null;
+const agentActionLabels = {
+  login: 'Log in',
+  signup: 'Create account',
+  account: 'My account',
+  cart: 'Cart',
+  orders: 'Orders',
+  support: 'Support',
+  'password-reset': 'Reset password'
+};
 
 function showFormError(message) {
   if (!formError) {
@@ -348,6 +357,11 @@ platformForm.addEventListener('submit', async (event) => {
   }
 
   const assistantName = String(formData.get('assistantName') || '').trim() || 'BLUENINE';
+  const agentActions = Array.from(platformForm.querySelectorAll('[data-action-id]')).map((input) => ({
+    id: input.dataset.actionId,
+    label: agentActionLabels[input.dataset.actionId] || input.dataset.actionId,
+    url: String(input.value || '').trim()
+  }));
 
   const payload = {
     instituteName: formData.get('instituteName'),
@@ -360,6 +374,7 @@ platformForm.addEventListener('submit', async (event) => {
     platformSummary: formData.get('platformSummary'),
     termsAccepted: formData.get('termsAccepted') === 'on',
     faqs,
+    agentActions,
     assistantName,
     assistantImage: assistantImageDataUrl
   };

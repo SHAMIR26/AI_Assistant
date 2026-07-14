@@ -46,6 +46,72 @@ const defaultHeaderIcons = [
   }
 ];
 
+const defaultAgentActions = [
+  {
+    id: 'login',
+    label: 'Log in',
+    intent: 'navigation',
+    description: 'Send users to the platform login page.',
+    keywords: ['login', 'log in', 'sign in', 'signin', 'access account'],
+    humanRequired: false,
+    url: ''
+  },
+  {
+    id: 'signup',
+    label: 'Create account',
+    intent: 'navigation',
+    description: 'Send users to the account registration page.',
+    keywords: ['sign up', 'signup', 'register', 'create account', 'open account'],
+    humanRequired: false,
+    url: ''
+  },
+  {
+    id: 'account',
+    label: 'My account',
+    intent: 'navigation',
+    description: 'Send users to their account or profile page.',
+    keywords: ['my account', 'profile', 'account page', 'dashboard'],
+    humanRequired: false,
+    url: ''
+  },
+  {
+    id: 'cart',
+    label: 'Cart',
+    intent: 'navigation',
+    description: 'Send users to the cart or checkout page.',
+    keywords: ['cart', 'basket', 'checkout', 'buy now', 'payment'],
+    humanRequired: false,
+    url: ''
+  },
+  {
+    id: 'orders',
+    label: 'Orders',
+    intent: 'navigation',
+    description: 'Send users to order history or order tracking.',
+    keywords: ['order', 'orders', 'track order', 'shipment', 'delivery'],
+    humanRequired: false,
+    url: ''
+  },
+  {
+    id: 'support',
+    label: 'Support',
+    intent: 'navigation',
+    description: 'Send users to customer support or contact help.',
+    keywords: ['support', 'help center', 'contact', 'customer service'],
+    humanRequired: false,
+    url: ''
+  },
+  {
+    id: 'password-reset',
+    label: 'Reset password',
+    intent: 'guided',
+    description: 'Guide users through password reset. The assistant must not change passwords itself.',
+    keywords: ['password', 'reset password', 'forgot password', 'change password'],
+    humanRequired: true,
+    url: ''
+  }
+];
+
 let ragIndex = {
   knowledgeDir,
   files: [],
@@ -425,6 +491,81 @@ function normalizePlan(value) {
   return ['Mini', 'Pro', 'Max'].includes(plan) ? plan : 'Mini';
 }
 
+function normalizeAgentActions(actions, platformUrl = '') {
+  const baseUrl = normalizeUrl(platformUrl);
+  const baseOrigin = baseUrl ? new URL(baseUrl).origin : null;
+  const submittedActions = Array.isArray(actions) ? actions : [];
+  const submittedById = new Map(submittedActions.map((action) => [String(action?.id || '').trim(), action]));
+
+  return defaultAgentActions.map((defaultAction) => {
+    const submitted = submittedById.get(defaultAction.id) || {};
+    const rawUrl = String(submitted.url || '').trim();
+    let normalizedActionUrl = '';
+
+    if (rawUrl) {
+      try {
+        normalizedActionUrl = new URL(rawUrl, baseOrigin || undefined).toString();
+      } catch (error) {
+        normalizedActionUrl = '';
+      }
+    }
+
+    return {
+      ...defaultAction,
+      url: normalizedActionUrl,
+      enabled: Boolean(normalizedActionUrl) || defaultAction.humanRequired
+    };
+  });
+}
+
+function getAvailableAgentActions(organization) {
+  return normalizeAgentActions(organization?.agentActions, organization?.platformUrl)
+    .filter((action) => action.enabled);
+}
+
+function actionKeywordMatches(message, action) {
+  const normalizedMessage = String(message || '').toLowerCase();
+  return action.keywords.some((keyword) => normalizedMessage.includes(keyword));
+}
+
+function findAgentAction(message, organization) {
+  if (!organization) return null;
+
+  const actions = getAvailableAgentActions(organization);
+  const lowered = String(message || '').toLowerCase();
+  const wantsNavigation = /\b(how|where|open|go|take|redirect|send|link|page|visit|find|access)\b/.test(lowered);
+  const matchedAction = actions.find((action) => actionKeywordMatches(message, action));
+
+  if (!matchedAction) return null;
+  if (matchedAction.humanRequired) return matchedAction;
+  if (!matchedAction.url) return null;
+
+  return wantsNavigation ? matchedAction : null;
+}
+
+function buildActionReply(action, organization) {
+  if (!action) return null;
+
+  if (action.humanRequired) {
+    const configuredResetUrl = action.url
+      ? ` You can start from this page: ${action.url}`
+      : '';
+    return {
+      reply: `For ${organization.instituteName}, I can guide you with ${action.label.toLowerCase()}, but I cannot perform that task for you because it requires your identity or a human confirmation.${configuredResetUrl} Use the platform's official ${action.label.toLowerCase()} option, follow the verification steps, and contact support if you cannot access your email or phone.`,
+      action: null
+    };
+  }
+
+  return {
+    reply: `I can take you to the ${action.label.toLowerCase()} page for ${organization.instituteName}. Redirecting you now.`,
+    action: {
+      type: 'redirect',
+      label: action.label,
+      url: action.url
+    }
+  };
+}
+
 function getPlanLimit(plan) {
   const normalizedPlan = normalizePlan(plan);
   const configuredLimit = Number(process.env[`PLAN_LIMIT_${normalizedPlan.toUpperCase()}`]);
@@ -647,6 +788,7 @@ async function loadOrganizationRegistry() {
         if (organization?.clientId && organization?.platformUrl) {
           organization.plan = normalizePlan(organization.plan);
           organization.usage = normalizeUsage(organization);
+          organization.agentActions = normalizeAgentActions(organization.agentActions, organization.platformUrl);
           organizations.push(organization);
         }
       } catch (error) {
@@ -681,6 +823,7 @@ async function saveOrganization(config) {
   };
   organization.plan = normalizePlan(organization.plan);
   organization.usage = normalizeUsage(organization);
+  organization.agentActions = normalizeAgentActions(organization.agentActions, organization.platformUrl);
 
   const storagePaths = await ensurePlatformFolders(organization);
   const conversationLog = await ensureConversationLog(organization);
@@ -992,6 +1135,18 @@ async function buildMonitorSnapshot() {
 }
 
 function buildPrompt(message, context, organization = null) {
+  const agentActions = organization ? getAvailableAgentActions(organization) : [];
+  const actionBlock = agentActions.length
+    ? `Available safe platform tasks:
+${agentActions.map((action) => {
+  const behavior = action.humanRequired
+    ? 'guide the user only; do not perform this task'
+    : `redirect the user to ${action.url}`;
+  return `- ${action.label}: ${behavior}. Trigger phrases: ${action.keywords.join(', ')}`;
+}).join('\n')}
+
+`
+    : '';
   const platformBlock = organization
     ? `Current client platform:
 Institute: ${organization.instituteName}
@@ -1000,6 +1155,7 @@ Organization type: ${organization.organizationType || 'Not provided'}
 Plan: ${organization.plan || 'Mini'}
 Service plan: ${organization.servicePlan || 'AI WebApp Personalized Chat Assistant'}
 
+${actionBlock}
 `
     : '';
   const contextBlock = context
@@ -1186,6 +1342,38 @@ app.post('/api/chat', async (req, res) => {
       return res.status(403).json({ error: 'This assistant code is not registered or is no longer active.' });
     }
 
+    const agentAction = findAgentAction(message, organization);
+    if (agentAction) {
+      const actionResponse = buildActionReply(agentAction, organization);
+      let conversationLog = null;
+      try {
+        conversationLog = await recordPlatformConversation(organization, {
+          userMessage: message,
+          assistantReply: actionResponse.reply,
+          sources: [],
+          request: {
+            clientId: clientId || null,
+            siteUrl: siteUrl || null,
+            action: actionResponse.action || { type: 'guided', label: agentAction.label }
+          }
+        });
+      } catch (error) {
+        console.error('Failed to record platform action conversation:', error?.message || error);
+      }
+
+      return res.json({
+        reply: actionResponse.reply,
+        sources: [],
+        action: actionResponse.action,
+        conversationLog,
+        platform: {
+          clientId: organization.clientId,
+          instituteName: organization.instituteName,
+          platformUrl: organization.platformUrl
+        }
+      });
+    }
+
     const organizationSources = organization
       ? [
           organization.knowledge?.detailFile,
@@ -1284,6 +1472,7 @@ app.get('/api/platform/status', (req, res) => {
           servicePlan: activePlatform.servicePlan,
           termsAccepted: activePlatform.termsAccepted,
           permissions: activePlatform.permissions,
+          agentActions: getAvailableAgentActions(activePlatform),
           updatedAt: activePlatform.updatedAt,
           knowledge: activePlatform.knowledge,
           conversationLog: activePlatform.conversationLog,
@@ -1323,6 +1512,7 @@ app.post('/api/platform/setup', async (req, res) => {
       platformSummary,
       termsAccepted,
       faqs,
+      agentActions,
       assistantName,
       assistantImage
     } = req.body;
@@ -1363,6 +1553,7 @@ app.post('/api/platform/setup', async (req, res) => {
       assistantImage: assistantImage || null,
       headerIcons: defaultHeaderIcons,
       faqs: platformFaqs,
+      agentActions: normalizeAgentActions(agentActions, normalizedUrl),
       termsAccepted: Boolean(termsAccepted),
       permissions: {},
       createdAt: new Date().toISOString(),
@@ -1397,6 +1588,7 @@ app.post('/api/platform/setup', async (req, res) => {
         organizationType: organization.organizationType,
         plan: organization.plan || 'Mini',
         servicePlan: organization.servicePlan,
+        agentActions: getAvailableAgentActions(organization),
         updatedAt: organization.updatedAt,
         integrationCode: organization.integrationCode,
         headerIcons: organization.headerIcons || defaultHeaderIcons,
