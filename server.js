@@ -34,13 +34,13 @@ const monitorSessionMaxAgeMs = 1000 * 60 * 60 * 8;
 const defaultHeaderIcons = [
   {
     name: 'Profile',
-    icon: '/icons/profile.svg',
+    icon: '/profile-image.png',
     href: '/profile.html',
     tooltip: 'View profile'
   },
   {
     name: 'Settings',
-    icon: '/icons/settings.svg',
+    icon: '/settings-image.png',
     href: '/settings.html',
     tooltip: 'Open settings'
   }
@@ -1126,7 +1126,8 @@ async function generateAssistantReply(prompt, fallbackReply) {
   }
 }
 
-app.use(express.json());
+app.use(express.json({ limit: '25mb' }));
+app.use(express.urlencoded({ extended: true, limit: '25mb' }));
 
 app.get(['/monitor', '/monitor/', '/monitor.html'], (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'Monitor', 'monitor.html'));
