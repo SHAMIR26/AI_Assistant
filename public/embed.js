@@ -242,6 +242,25 @@
         logoImg.alt = name;
         launcher.title = `Open ${name} assistant`;
         frame.title = `${name} — AI Assistant`;
+        // Send appearance info to the iframe so the chat UI can use the
+        // same assistant name and image immediately (avoids timing issues).
+        try {
+          const origin = new URL(baseUrl).origin;
+          frame.addEventListener('load', () => {
+            try {
+              frame.contentWindow.postMessage({
+                type: 'platformAppearance',
+                assistantName: name,
+                assistantImage: image,
+                instituteName: platform.instituteName || ''
+              }, origin);
+            } catch (e) {
+              // ignore
+            }
+          }, { once: true });
+        } catch (e) {
+          // ignore any URL parsing/postMessage errors
+        }
       } catch (err) {
         // ignore errors silently
       }
