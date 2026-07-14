@@ -540,10 +540,16 @@ function buildEmbedScript(req, organization) {
   const baseUrl = getPublicBaseUrl(req);
   const clientIdAttribute = organization.clientId ? ` data-client-id="${organization.clientId}"` : '';
   const embedTokenAttribute = organization.embedToken ? ` data-embed-token="${organization.embedToken}"` : '';
-  return [
-    '<!-- Paste this as HTML before </body>, outside any existing <script> block. -->',
-    `<script src="${baseUrl}/embed.js"${clientIdAttribute}${embedTokenAttribute} async defer></script>`
-  ].join('\n');
+  // Return a multi-line, indented snippet so integrators can paste it
+  // directly into their HTML. Attributes are placed on separate lines
+  // for readability and to avoid accidental truncation when copying.
+  const scriptTag = [`<script src="${baseUrl}/embed.js"`,
+    clientIdAttribute ? `  ${clientIdAttribute.trim()}` : '',
+    embedTokenAttribute ? `  ${embedTokenAttribute.trim()}` : '',
+    '  async defer></script>'
+  ].filter(Boolean).join('\n');
+
+  return ['<!-- Paste this as HTML before </body>, outside any existing <script> block. -->', scriptTag].join('\n');
 }
 
 function getConversationLogPaths(organization) {
