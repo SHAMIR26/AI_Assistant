@@ -721,16 +721,30 @@ function getOrganizationFromRequest(req) {
   return organization;
 }
 
+function escapeAttribute(value) {
+  return String(value || '')
+    .replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
 function buildEmbedScript(req, organization) {
   const baseUrl = getPublicBaseUrl(req);
   const clientIdAttribute = organization.clientId ? ` data-client-id="${organization.clientId}"` : '';
   const embedTokenAttribute = organization.embedToken ? ` data-embed-token="${organization.embedToken}"` : '';
+  const assistantName = organization.assistantName || '';
+  const assistantImage = resolveAssistantImageUrl(req, organization.assistantImage);
+  const assistantNameAttribute = assistantName ? ` data-assistant-name="${escapeAttribute(assistantName)}"` : '';
+  const assistantImageAttribute = assistantImage ? ` data-assistant-image="${escapeAttribute(assistantImage)}"` : '';
   // Return a multi-line, indented snippet so integrators can paste it
   // directly into their HTML. Attributes are placed on separate lines
   // for readability and to avoid accidental truncation when copying.
   const scriptTag = [`<script src="${baseUrl}/embed.js"`,
     clientIdAttribute ? `  ${clientIdAttribute.trim()}` : '',
     embedTokenAttribute ? `  ${embedTokenAttribute.trim()}` : '',
+    assistantNameAttribute ? `  ${assistantNameAttribute.trim()}` : '',
+    assistantImageAttribute ? `  ${assistantImageAttribute.trim()}` : '',
     '  async defer></script>'
   ].filter(Boolean).join('\n');
 
@@ -1619,7 +1633,8 @@ app.post('/api/platform/setup', async (req, res) => {
         errors: []
       }
     });
-    organization.integrationCode = config.integrationCode;
+    organization.integrationCode = buildEmbedScript(req, organization);
+    await writeOrganizationBasicInfo(organization);
 
     // Build the full response payload first, then send it in one go.
     // Do NOT call res.flushHeaders() before res.json() — on proxied hosts like

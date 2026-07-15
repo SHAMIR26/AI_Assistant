@@ -11,6 +11,8 @@
   const embedScriptElement = findEmbedScript();
   const clientId = embedScriptElement?.dataset?.clientId || '';
   const embedToken = embedScriptElement?.dataset?.embedToken || '';
+  const snippetAssistantName = embedScriptElement?.dataset?.assistantName || '';
+  const snippetAssistantImage = embedScriptElement?.dataset?.assistantImage || '';
   const siteUrl = window.location.origin;
 
   function looksLikeLeakedScript(text) {
@@ -202,10 +204,12 @@
 
     const frame = document.createElement('iframe');
     frame.className = 'frame';
-    frame.title = 'LICONR AI Chat Assistant';
+    frame.title = snippetAssistantName ? `${snippetAssistantName} - AI Assistant` : 'LICONR AI Chat Assistant';
     const params = new URLSearchParams({ embed: '1' });
     if (clientId) params.set('clientId', clientId);
     if (embedToken) params.set('embedToken', embedToken);
+    if (snippetAssistantName) params.set('assistantName', snippetAssistantName);
+    if (snippetAssistantImage) params.set('assistantImage', resolveAssetUrl(snippetAssistantImage, baseUrl));
     if (siteUrl) params.set('siteUrl', siteUrl);
     frame.src = `${baseUrl}/ai_chat.html?${params.toString()}`;
     frame.loading = 'lazy';
@@ -220,8 +224,8 @@
 
     const logoImg = document.createElement('img');
     logoImg.className = 'launcher-logo';
-    logoImg.src = `${baseUrl}/liconr-logo.png`;
-    logoImg.alt = 'LICONR AI';
+    logoImg.src = resolveAssetUrl(snippetAssistantImage, baseUrl) || `${baseUrl}/liconr-logo.png`;
+    logoImg.alt = snippetAssistantName || 'LICONR AI';
     logoImg.draggable = false;
 
     const closeSpan = document.createElement('span');
@@ -230,6 +234,32 @@
     closeSpan.textContent = '✕';
 
     launcher.append(logoImg, closeSpan);
+
+    function postAppearanceToFrame(name, image, instituteName) {
+      if (!frame.contentWindow) return;
+
+      try {
+        const origin = new URL(baseUrl).origin;
+        frame.contentWindow.postMessage({
+          type: 'platformAppearance',
+          assistantName: name,
+          assistantImage: image,
+          instituteName: instituteName || ''
+        }, origin);
+      } catch (e) {
+        // ignore
+      }
+    }
+
+    frame.addEventListener('load', () => {
+      if (snippetAssistantName || snippetAssistantImage) {
+        postAppearanceToFrame(
+          snippetAssistantName || 'AI Assistant',
+          resolveAssetUrl(snippetAssistantImage, baseUrl) || null,
+          ''
+        );
+      }
+    });
 
     // Try to fetch platform details (assistant name / image) and update the
     // launcher appearance if the platform has provided them. Non-blocking.
@@ -253,6 +283,7 @@
         }
         logoImg.alt = name;
         launcher.title = `Open ${name} assistant`;
+        postAppearanceToFrame(name, image, platform.instituteName || '');
         frame.title = `${name} — AI Assistant`;
         // Send appearance info to the iframe so the chat UI can use the
         // same assistant name and image immediately (avoids timing issues).
