@@ -20,6 +20,7 @@ const selectedPlan = urlParams.get('plan') || '';
 const faqList = document.getElementById('faq-list');
 const formError = document.getElementById('form-error');
 const addFaqButton = document.getElementById('add-faq-button');
+const postRegistrationRedirectKey = 'bluenine:redirect-to-index-after-refresh';
 let faqIndex = 1;
 let setupRefreshTimer = null;
 let platformSetupAbortController = null;
@@ -41,6 +42,17 @@ function showFormError(message) {
   formError.textContent = message;
   formError.style.display = 'block';
   formError.scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+function handlePostRegistrationRedirect() {
+  const isHomePage = window.location.pathname.endsWith('/home.html') || window.location.pathname.endsWith('/home');
+  const shouldRedirect = isHomePage && sessionStorage.getItem(postRegistrationRedirectKey) === '1';
+
+  if (!shouldRedirect) return false;
+
+  sessionStorage.removeItem(postRegistrationRedirectKey);
+  window.location.replace('index.html');
+  return true;
 }
 
 function clearFormError() {
@@ -265,11 +277,8 @@ copyIntegrationCode?.addEventListener('click', async () => {
   try {
     await navigator.clipboard.writeText(code);
     if (setupRefreshTimer) clearTimeout(setupRefreshTimer);
-    integrationCopyStatus.textContent = 'Copied. Refreshing for the next platform...';
+    integrationCopyStatus.textContent = 'Copied. Refresh the page manually when you want to return to the main landing page.';
     copyIntegrationCode.textContent = 'Copied';
-    setTimeout(() => {
-      window.location.reload();
-    }, 900);
   } catch (error) {
     integrationCodeOutput?.focus();
     integrationCodeOutput?.select();
@@ -436,9 +445,11 @@ platformForm.addEventListener('submit', async (event) => {
     }, { showSavedPlatform: true });
     platformForm.reset();
 
+    sessionStorage.setItem(postRegistrationRedirectKey, '1');
+
     const chatLink = `${window.location.origin}/ai_chat.html?clientId=${data.platform.clientId}`;
-    if (platformStatus) platformStatus.textContent = 'Saved. Refreshing for next platform in 15 seconds';
-    if (integrationCopyStatus) integrationCopyStatus.textContent = 'Copy this code now and paste it as HTML outside any existing script block. This page will refresh for another platform registration in 15 seconds.';
+    if (platformStatus) platformStatus.textContent = 'Saved. Keep this page open and refresh it manually when you are ready.';
+    if (integrationCopyStatus) integrationCopyStatus.textContent = 'Copy this code now and paste it as HTML outside any existing script block. Refresh the page manually to return to the main landing page.';
 
     // Show integration snippet and chat link in the result display box
     showResultCard({
@@ -446,10 +457,6 @@ platformForm.addEventListener('submit', async (event) => {
       chatLink,
       integrationCode: data.integrationCode || `<script src="${data.embedScript}" async defer></script>`
     });
-
-    setupRefreshTimer = setTimeout(() => {
-      window.location.reload();
-    }, 15000);
   } catch (error) {
     if (platformStatus) platformStatus.textContent = 'Setup failed';
     // Show error in the result box
@@ -476,4 +483,6 @@ platformForm.addEventListener('submit', async (event) => {
   }
 });
 
-loadPlatformStatus();
+if (!handlePostRegistrationRedirect()) {
+  loadPlatformStatus();
+}
