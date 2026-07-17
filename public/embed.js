@@ -69,6 +69,14 @@
       const assetUrl = String(value || '').trim();
       if (!assetUrl) return '';
       if (/^(?:https?:|data:)/i.test(assetUrl)) return assetUrl;
+      if (assetUrl.startsWith('//')) return `https:${assetUrl}`;
+      if (assetUrl.startsWith('/')) {
+        try {
+          return new URL(assetUrl, `${baseUrl}/`).toString();
+        } catch (error) {
+          return assetUrl;
+        }
+      }
 
       try {
         return new URL(assetUrl, `${baseUrl}/`).toString();
@@ -227,6 +235,11 @@
     logoImg.src = resolveAssetUrl(snippetAssistantImage, baseUrl) || `${baseUrl}/liconr-logo.png`;
     logoImg.alt = snippetAssistantName || 'LICONR AI';
     logoImg.draggable = false;
+    logoImg.onerror = () => {
+      if (logoImg.dataset.fallbackApplied === '1') return;
+      logoImg.dataset.fallbackApplied = '1';
+      logoImg.src = `${baseUrl}/liconr-logo.png`;
+    };
 
     const closeSpan = document.createElement('span');
     closeSpan.className = 'launcher-close';

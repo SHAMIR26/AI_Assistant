@@ -5,6 +5,102 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Profile - BLUENINE</title>
   <link rel="stylesheet" href="style.css" />
+  <style>
+    body {
+      margin: 0;
+      background: linear-gradient(135deg, #020617, #111827);
+      color: #f8fafc;
+      font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    .app-shell {
+      min-height: 100vh;
+      padding: 24px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .chat-panel {
+      width: min(860px, 100%);
+      background: rgba(15, 23, 42, 0.95);
+      border: 1px solid rgba(148, 163, 184, 0.2);
+      border-radius: 24px;
+      box-shadow: 0 24px 80px rgba(2, 6, 23, 0.45);
+      overflow: hidden;
+    }
+    .chat-header {
+      padding: 24px 32px;
+      border-bottom: 1px solid rgba(148, 163, 184, 0.16);
+      background: rgba(2, 6, 23, 0.8);
+    }
+    .logo-text {
+      font-size: 1.35rem;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+    .content {
+      padding: 32px;
+    }
+    .profile-card, .profile-list {
+      background: rgba(15, 23, 42, 0.8);
+      border: 1px solid rgba(148, 163, 184, 0.16);
+      border-radius: 18px;
+      padding: 24px;
+    }
+    .profile-card h1 {
+      margin-bottom: 12px;
+      font-size: 1.75rem;
+    }
+    .profile-card p, .profile-list li {
+      margin: 10px 0;
+      color: #cbd5e1;
+      line-height: 1.7;
+    }
+    .profile-meta {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-top: 12px;
+    }
+    .pill {
+      display: inline-block;
+      padding: 8px 12px;
+      border-radius: 999px;
+      background: rgba(59, 130, 246, 0.16);
+      color: #bfdbfe;
+      font-size: 0.9rem;
+      border: 1px solid rgba(96, 165, 250, 0.24);
+    }
+    .actions {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-top: 20px;
+    }
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 12px 16px;
+      border-radius: 999px;
+      border: none;
+      cursor: pointer;
+      background: #2563eb;
+      color: white;
+      text-decoration: none;
+      font-weight: 600;
+    }
+    .btn.secondary {
+      background: rgba(255, 255, 255, 0.08);
+      color: #f8fafc;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+    }
+    .muted {
+      color: #94a3b8;
+      font-size: 0.95rem;
+      margin-top: 8px;
+    }
+  </style>
 </head>
 <body>
   <main class="app-shell">
@@ -12,12 +108,66 @@
       <header class="chat-header">
         <div class="logo-text">BLUENINE Profile</div>
       </header>
-      <div style="padding: 32px; color: #eef2ff;">
-        <h1>Profile</h1>
-        <p>This is the profile page. Update your profile details here once connected.</p>
-        <p><a href="index.html" style="color:#60a5fa;">Return to home</a></p>
+      <div class="content">
+        <div id="profile-content" class="profile-card"></div>
+        <div id="profile-list" class="profile-list" style="margin-top: 20px;"></div>
       </div>
     </section>
   </main>
+  <script>
+    async function loadProfile() {
+      const params = new URLSearchParams(window.location.search);
+      const email = params.get('email') || '';
+      const url = email ? `/api/user-profiles?email=${encodeURIComponent(email)}` : '/api/user-profiles';
+      const content = document.getElementById('profile-content');
+      const list = document.getElementById('profile-list');
+
+      try {
+        const response = await fetch(url);
+        if (!response.ok) throw new Error('Unable to load profile');
+        const data = await response.json();
+        const profile = data.profile || (Array.isArray(data.profiles) ? data.profiles[data.profiles.length - 1] : null);
+
+        if (!profile) {
+          content.innerHTML = '<h1>No profile found</h1><p>Create a profile first to see it here.</p><div class="actions"><a class="btn" href="create_profile.html">Create profile</a><a class="btn secondary" href="index.html">Back to home</a></div>';
+          list.innerHTML = '';
+          return;
+        }
+
+        const params = new URLSearchParams(window.location.search);
+        const nextStep = params.get('next') === 'payment';
+        const amount = params.get('amount') || '';
+        const plan = params.get('plan') || profile.plan || '';
+
+        content.innerHTML = `
+          <h1>${profile.fullName || 'Your profile'}</h1>
+          <p>Your profile is now saved in our database folder.</p>
+          <div class="profile-meta">
+            <span class="pill">${profile.plan || 'Mini'}</span>
+            <span class="pill">${profile.email}</span>
+            <span class="pill">${profile.mobileNumber}</span>
+          </div>
+          <p><strong>Created:</strong> ${new Date(profile.createdAt || Date.now()).toLocaleString()}</p>
+          <div class="actions">
+            <a class="btn" href="index.html">Back to home</a>
+            ${nextStep ? `<a class="btn secondary" href="/payment.html?amount=${encodeURIComponent(amount)}&plan=${encodeURIComponent(plan)}&name=${encodeURIComponent(profile.fullName)}&email=${encodeURIComponent(profile.email)}">Continue to payment</a>` : ''}
+          </div>
+        `;
+
+        if (Array.isArray(data.profiles) && data.profiles.length) {
+          list.innerHTML = '<h2 style="margin-bottom: 10px;">Saved profiles</h2><ul>' + data.profiles.map(function (item) {
+            return `<li><strong>${item.fullName}</strong> — ${item.email} — ${item.plan || 'Mini'}</li>`;
+          }).join('') + '</ul>';
+        } else {
+          list.innerHTML = '';
+        }
+      } catch (error) {
+        content.innerHTML = '<h1>Unable to load profile</h1><p>Please try again in a moment.</p>';
+        console.error(error);
+      }
+    }
+
+    document.addEventListener('DOMContentLoaded', loadProfile);
+  </script>
 </body>
 </html>

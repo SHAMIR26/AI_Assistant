@@ -225,6 +225,54 @@ async function ensureAssistantAssetDir() {
   await fs.mkdir(assistantAssetDir, { recursive: true });
 }
 
+const userProfilesFile = path.join(databaseDir, 'User_Profiles.json');
+
+async function ensureUserProfilesFile() {
+  await ensureDatabaseDir();
+  try {
+    await fs.access(userProfilesFile);
+  } catch (error) {
+    await fs.writeFile(userProfilesFile, '[]', 'utf8');
+  }
+}
+
+async function loadUserProfilesFile() {
+  await ensureUserProfilesFile();
+  const raw = await fs.readFile(userProfilesFile, 'utf8');
+  try {
+    return JSON.parse(raw);
+  } catch (error) {
+    return [];
+  }
+}
+
+async function saveUserProfilesFile(profiles) {
+  await ensureDatabaseDir();
+  await fs.writeFile(userProfilesFile, JSON.stringify(profiles, null, 2), 'utf8');
+}
+
+function normalizeProfilePayload(payload) {
+  const fullName = String(payload?.fullName || '').trim();
+  const email = String(payload?.email || '').trim().toLowerCase();
+  const mobileNumber = String(payload?.mobileNumber || '').trim();
+  const plan = String(payload?.plan || '').trim();
+  const errors = [];
+
+  if (!fullName) errors.push('Full name is required.');
+  if (!isEmail(email)) errors.push('A valid email address is required.');
+  if (!/^[+]\d{7,15}$/.test(mobileNumber)) {
+    errors.push('Mobile number must include a country code, for example +1234567890.');
+  }
+
+  return {
+    fullName,
+    email,
+    mobileNumber,
+    plan: ['Mini', 'Pro', 'Max'].includes(plan) ? plan : 'Mini',
+    errors
+  };
+}
+
 function safeSlug(value) {
   return String(value || 'organization')
     .toLowerCase()
@@ -497,6 +545,9 @@ function getAssistantImageExtension(mimeType) {
   if (normalized === 'image/png') return 'png';
   if (normalized === 'image/webp') return 'webp';
   if (normalized === 'image/gif') return 'gif';
+  if (normalized === 'image/svg+xml') return 'svg';
+  if (normalized === 'image/avif') return 'avif';
+  if (normalized === 'image/x-icon' || normalized === 'image/vnd.microsoft.icon') return 'ico';
   return null;
 }
 
@@ -506,13 +557,13 @@ async function persistAssistantImage(value, clientId) {
   if (/^https?:\/\//i.test(image) || image.startsWith('/assistant-assets/')) return image;
 
   const match = /^data:(image\/[a-z0-9.+-]+);base64,([a-z0-9+/=\s]+)$/i.exec(image);
-  if (!match) return null;
+  if (!match) return image.startsWith('data:') ? image : null;
 
   const extension = getAssistantImageExtension(match[1]);
-  if (!extension) return null;
+  if (!extension) return image;
 
   const buffer = Buffer.from(match[2].replace(/\s/g, ''), 'base64');
-  if (!buffer.length || buffer.length > 5 * 1024 * 1024) return null;
+  if (!buffer.length || buffer.length > 5 * 1024 * 1024) return image;
 
   await ensureAssistantAssetDir();
   const hash = crypto.createHash('sha256').update(buffer).digest('hex').slice(0, 16);
@@ -1375,6 +1426,63 @@ app.get('/access/knowledge/*', (req, res) => {
 
 app.use(express.static(path.join(__dirname, 'public')));
 app.use('/redulix', express.static(path.join(__dirname, 'Redulix')));
+
+app.get('/api/user-profiles', async (req, res) => {
+  try {
+    const profiles = await loadUserProfilesFile();
+    const requestedEmail = String(req.query.email || '').trim().toLowerCase();
+    const requestedId = String(req.query.id || '').trim();
+
+    if (requestedEmail) {
+      const profile = profiles.find((item) => (item.email || '').toLowerCase() === requestedEmail);
+      return res.json({ profile: profile || null, profilesCount: profiles.length });
+    }
+
+    if (requestedId) {
+      const profile = profiles.find((item) => item.id === requestedId);
+      return res.json({ profile: profile || null, profilesCount: profiles.length });
+    }
+
+    return res.json({ profiles, profilesCount: profiles.length });
+  } catch (error) {
+    console.error('Failed to load user profiles:', error?.message || error);
+    return res.status(500).json({ error: 'Unable to load user profiles.' });
+  }
+});
+
+app.post('/api/user-profiles', async (req, res) => {
+  try {
+    const normalized = normalizeProfilePayload(req.body || {});
+    if (normalized.errors.length) {
+      return res.status(400).json({ error: 'Please provide valid profile data.', details: normalized.errors });
+    }
+
+    const profiles = await loadUserProfilesFile();
+    const existingIndex = profiles.findIndex((item) => (item.email || '').toLowerCase() === normalized.email);
+    const now = new Date().toISOString();
+    const profile = {
+      id: existingIndex >= 0 ? profiles[existingIndex].id : `profile-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      fullName: normalized.fullName,
+      email: normalized.email,
+      mobileNumber: normalized.mobileNumber,
+      plan: normalized.plan,
+      createdAt: existingIndex >= 0 ? profiles[existingIndex].createdAt : now,
+      updatedAt: now
+    };
+
+    if (existingIndex >= 0) {
+      profiles[existingIndex] = profile;
+    } else {
+      profiles.push(profile);
+    }
+
+    await saveUserProfilesFile(profiles);
+    return res.status(201).json({ profile, profilesCount: profiles.length });
+  } catch (error) {
+    console.error('Failed to save user profile:', error?.message || error);
+    return res.status(500).json({ error: 'Unable to save user profile.' });
+  }
+});
 
 app.get('/home.html', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'home.html'));

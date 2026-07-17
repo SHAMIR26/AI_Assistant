@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Create Profile - BLUENINE</title>
+  <style>
+    :root {
+      color-scheme: dark;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: linear-gradient(135deg, #020617, #111827);
+      color: #f8fafc;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+    .card {
+      width: min(760px, 100%);
+      background: rgba(15, 23, 42, 0.94);
+      border: 1px solid rgba(148, 163, 184, 0.2);
+      border-radius: 24px;
+      box-shadow: 0 24px 80px rgba(2, 6, 23, 0.4);
+      overflow: hidden;
+    }
+    .header {
+      padding: 28px 32px 16px;
+      border-bottom: 1px solid rgba(148, 163, 184, 0.16);
+      background: rgba(2, 6, 23, 0.78);
+    }
+    .eyebrow {
+      text-transform: uppercase;
+      letter-spacing: 0.16em;
+      color: #93c5fd;
+      font-size: 0.8rem;
+      margin-bottom: 8px;
+      font-weight: 700;
+    }
+    h1 { margin: 0; font-size: 1.8rem; }
+    .content { padding: 24px 32px 32px; }
+    .form-message {
+      margin-bottom: 16px;
+      min-height: 24px;
+      color: #fda4af;
+      font-weight: 600;
+    }
+    form { display: grid; gap: 16px; }
+    label {
+      display: grid;
+      gap: 8px;
+      color: #e2e8f0;
+      font-weight: 600;
+    }
+    input {
+      width: 100%;
+      padding: 12px 14px;
+      border-radius: 12px;
+      border: 1px solid rgba(148, 163, 184, 0.2);
+      background: rgba(255, 255, 255, 0.06);
+      color: #f8fafc;
+      font-size: 1rem;
+    }
+    input:focus { outline: 2px solid rgba(59, 130, 246, 0.35); border-color: #60a5fa; }
+    button {
+      border: none;
+      padding: 13px 18px;
+      border-radius: 999px;
+      background: linear-gradient(135deg, #2563eb, #3b82f6);
+      color: white;
+      font-weight: 700;
+      cursor: pointer;
+      font-size: 1rem;
+    }
+    .helper {
+      margin-top: 12px;
+      color: #94a3b8;
+      line-height: 1.7;
+    }
+    .pill {
+      display: inline-flex;
+      padding: 8px 12px;
+      border-radius: 999px;
+      background: rgba(59, 130, 246, 0.16);
+      color: #bfdbfe;
+      border: 1px solid rgba(96, 165, 250, 0.2);
+      font-size: 0.95rem;
+      margin-top: 6px;
+    }
+  </style>
+</head>
+<body>
+  <main class="card">
+    <header class="header">
+      <div class="eyebrow">Create profile</div>
+      <h1>Set up your account before checkout</h1>
+    </header>
+    <div class="content">
+      <div id="form-message" class="form-message" aria-live="polite"></div>
+      <form id="profile-form">
+        <label>
+          Full Name
+          <input type="text" id="fullName" name="fullName" placeholder="Jane Doe" required />
+        </label>
+        <label>
+          Email
+          <input type="email" id="email" name="email" placeholder="jane@example.com" required />
+        </label>
+        <label>
+          Mobile Number with Country Code
+          <input type="tel" id="mobileNumber" name="mobileNumber" placeholder="+1234567890" required pattern="^\+\d{7,15}$" />
+        </label>
+        <input type="hidden" id="plan" name="plan" />
+        <input type="hidden" id="amount" name="amount" />
+        <button type="submit">Create profile and continue</button>
+      </form>
+      <p class="helper">Your profile will be stored in the Database/User_Profiles.json file and shown on the profile page once created.</p>
+      <div id="plan-badge" class="pill"></div>
+    </div>
+  </main>
+  <script>
+    const params = new URLSearchParams(window.location.search);
+    const plan = params.get('plan') || 'Mini';
+    const amount = params.get('amount') || '';
+    document.getElementById('plan').value = plan;
+    document.getElementById('amount').value = amount;
+    document.getElementById('plan-badge').textContent = `Selected plan: ${plan}${amount ? ` · $${amount}` : ''}`;
+
+    const form = document.getElementById('profile-form');
+    const message = document.getElementById('form-message');
+
+    form.addEventListener('submit', async function (event) {
+      event.preventDefault();
+      message.textContent = '';
+
+      const payload = {
+        fullName: document.getElementById('fullName').value.trim(),
+        email: document.getElementById('email').value.trim(),
+        mobileNumber: document.getElementById('mobileNumber').value.trim(),
+        plan: document.getElementById('plan').value,
+        amount: document.getElementById('amount').value
+      };
+
+      try {
+        const response = await fetch('/api/user-profiles', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error((data && data.details && data.details[0]) || (data && data.error) || 'Unable to save profile');
+        }
+
+        const nextUrl = new URL('/profile.html', window.location.origin);
+        nextUrl.searchParams.set('email', data.profile.email);
+        nextUrl.searchParams.set('plan', data.profile.plan || plan);
+        nextUrl.searchParams.set('amount', amount);
+        nextUrl.searchParams.set('next', 'payment');
+        window.location.href = nextUrl.toString();
+      } catch (error) {
+        message.textContent = error.message || 'Unable to save profile.';
+      }
+    });
+  </script>
+</body>
+</html>

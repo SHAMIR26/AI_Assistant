@@ -19,6 +19,7 @@
         <a href="#features">Features</a>
         <a href="#pricing">Pricing</a>
         <a href="#contact">Contact</a>
+        <a href="access.html">Access</a>
       </div>
 
       <div class="topbar-actions" id="header-icons">
@@ -151,7 +152,9 @@
       btn.addEventListener('click', function () {
         var amount = btn.dataset.amount;
         var plan = btn.dataset.plan || '';
-        var url = new URL('payment.html', window.location.href);
+        var text = (btn.textContent || '').toLowerCase();
+        var targetPage = text.includes('renew') ? 'payment.html' : 'create_profile.html';
+        var url = new URL(targetPage, window.location.href);
         url.searchParams.set('amount', amount);
         if (plan) url.searchParams.set('plan', plan);
         window.location.href = url.href;

@@ -71,7 +71,11 @@
 			var params = new URLSearchParams(window.location.search);
 			var amt = params.get('amount');
 			var plan = params.get('plan');
+			var name = params.get('name');
+			var email = params.get('email');
 			var amountInput = document.getElementById('amount');
+			var nameInput = document.getElementById('name');
+			var emailInput = document.getElementById('email');
 			if (amt && amountInput) {
 				var num = parseFloat(amt);
 				if (!isNaN(num)) {
@@ -80,6 +84,8 @@
 					amountInput.style.background = 'rgba(255,255,255,0.02)';
 				}
 			}
+			if (name && nameInput) nameInput.value = name;
+			if (email && emailInput) emailInput.value = email;
 			if (plan) {
 				var title = document.querySelector('.card h1');
 				if (title) title.textContent = 'Secure Payment — ' + plan;
