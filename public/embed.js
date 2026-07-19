@@ -289,8 +289,15 @@
         if (!platform) return;
         const name = platform.assistantName || platform.instituteName || 'AI Assistant';
         const image = resolveAssetUrl(platform.assistantImage, baseUrl) || null;
+        // Prefer the freshly-fetched image, but never let a missing value
+        // here (e.g. a transient fetch issue) blow away the appearance
+        // that was already baked into the pasted snippet and is already
+        // showing correctly.
+        const fallbackSnippetImage = resolveAssetUrl(snippetAssistantImage, baseUrl) || null;
         if (image) {
           logoImg.src = image;
+        } else if (fallbackSnippetImage) {
+          logoImg.src = fallbackSnippetImage;
         } else {
           logoImg.src = `${baseUrl}/liconr-logo.png`;
         }

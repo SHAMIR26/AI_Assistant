@@ -1704,8 +1704,25 @@ app.post('/api/platform/setup', async (req, res) => {
         })).filter((faq) => faq.question || faq.answer)
       : [];
 
-    const clientId = createClientId(instituteName);
-    const storedAssistantImage = await persistAssistantImage(assistantImage, clientId);
+    // Look up any existing organization for this platform URL BEFORE we
+    // touch assistant appearance fields. The "AI Assistant" section of the
+    // setup form is optional and the image <input type="file"> is never
+    // re-populated by the browser on subsequent visits, so a client who
+    // re-submits the form later (e.g. to edit an FAQ) will naturally send
+    // an empty assistantImage/assistantName. Without this fallback that
+    // blank value would overwrite — and silently erase — the appearance
+    // they configured earlier, causing the default logo to show instead.
+    const existingOrganization = organizationRegistry.find(
+      (org) => org.platformUrl === normalizedUrl
+    ) || null;
+
+    const clientId = existingOrganization?.clientId || createClientId(instituteName);
+    const storedAssistantImage = assistantImage
+      ? await persistAssistantImage(assistantImage, clientId)
+      : (existingOrganization?.assistantImage || null);
+    const resolvedAssistantName = String(assistantName || '').trim()
+      || existingOrganization?.assistantName
+      || 'BLUENINE';
 
     const config = {
       clientId,
@@ -1718,7 +1735,7 @@ app.post('/api/platform/setup', async (req, res) => {
       plan: normalizePlan(plan),
       servicePlan: (servicePlan || 'AI WebApp Personalized Chat Assistant').trim(),
       platformSummary: platformSummary.trim(),
-      assistantName: (assistantName || 'BLUENINE').trim(),
+      assistantName: resolvedAssistantName,
       assistantImage: storedAssistantImage,
       headerIcons: defaultHeaderIcons,
       faqs: platformFaqs,
