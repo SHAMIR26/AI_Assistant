@@ -20,7 +20,7 @@ const selectedPlan = urlParams.get('plan') || '';
 const faqList = document.getElementById('faq-list');
 const formError = document.getElementById('form-error');
 const addFaqButton = document.getElementById('add-faq-button');
-const postRegistrationRedirectKey = 'bluenine:redirect-to-index-after-refresh';
+const postRegistrationRedirectKey = 'licoass:redirect-to-index-after-refresh';
 let faqIndex = 1;
 let setupRefreshTimer = null;
 let platformSetupAbortController = null;
@@ -365,7 +365,7 @@ platformForm.addEventListener('submit', async (event) => {
     assistantImageDataUrl = null;
   }
 
-  const assistantName = String(formData.get('assistantName') || '').trim() || 'BLUENINE';
+  const assistantName = String(formData.get('assistantName') || '').trim() || 'LICOASS';
   const agentActions = Array.from(platformForm.querySelectorAll('[data-action-id]')).map((input) => ({
     id: input.dataset.actionId,
     label: agentActionLabels[input.dataset.actionId] || input.dataset.actionId,

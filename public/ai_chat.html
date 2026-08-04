@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>BLUENINE AI Chat Assistant</title>
+  <title>LICOASS AI Chat Assistant</title>
   <link rel="stylesheet" href="style.css" />
   <style>
     /* ai_chat.html only — full-screen focused chat, no setup panel */
@@ -91,7 +91,7 @@
 
       <header class="chat-header">
         <div class="chat-header-meta">
-          <div class="logo-text">BLUENINE AI Chat Assistant</div>
+          <div style="display:flex;align-items:center;gap:10px;"><img src="/liconr-logo.png" alt="LICOASS" style="width:36px;height:36px;border-radius:999px;object-fit:cover;" /><div class="logo-text">LICOASS AI Chat Assistant</div></div>
           <p class="chat-header-platform" id="platform-label" hidden>
             Powered by <span id="platform-name-display"></span>
           </p>
@@ -160,7 +160,7 @@
     const emptyState   = document.querySelector('[data-empty-state]');
 
     function applyAppearance(assistantName, assistantImage, instituteName = '') {
-      const displayName = assistantName || instituteName || 'BLUENINE';
+      const displayName = assistantName || instituteName || 'LICOASS';
 
       if (instituteName) {
         platformNameDisplay.textContent = instituteName;
@@ -193,6 +193,27 @@
       }
     }
 
+    function getPlatformName(platformName = '', fallbackUrl = '') {
+      const cleanedName = String(platformName || '').trim();
+      if (cleanedName) return cleanedName;
+
+      if (!fallbackUrl) return 'this platform';
+
+      try {
+        const parsed = new URL(fallbackUrl);
+        const hostname = parsed.hostname.replace(/^www\./i, '');
+        return hostname || 'this platform';
+      } catch (error) {
+        return 'this platform';
+      }
+    }
+
+    function buildIntroMessage(assistantName = '', platformName = '') {
+      const displayName = String(assistantName || 'AI Assistant').trim();
+      const platformDisplayName = getPlatformName(platformName, siteUrl);
+      return `Hi, I am ${displayName}. I will guide and assist you in ${platformDisplayName}.`;
+    }
+
     if (initialAssistantName || initialAssistantImage) {
       applyAppearance(initialAssistantName, initialAssistantImage);
     }
@@ -203,7 +224,7 @@
       try {
         const data = event.data || {};
         if (data?.type !== 'platformAppearance') return;
-        const assistantName = data.assistantName || data.instituteName || 'BLUENINE';
+        const assistantName = data.assistantName || data.instituteName || 'LICOASS';
         const assistantImage = data.assistantImage || null;
         const instituteName = data.instituteName || '';
 
@@ -342,8 +363,8 @@
 
         const platform = data.platform || {};
         const name = platform.instituteName;
-        const assistantName = platform.assistantName || 'BLUENINE';
-        const assistantImage = platform.assistantImage || null;
+        const assistantName = platform.assistantName || initialAssistantName || 'LICOASS';
+        const assistantImage = platform.assistantImage || initialAssistantImage || null;
         if (name) {
           platformNameDisplay.textContent = name;
           platformLabel.hidden = false;
@@ -376,7 +397,7 @@
 
         // Intro message so visitors notice the assistant immediately
         try {
-          const intro = `I am ${assistantName} assistant, and I am here to assist and guide you in the ${name || 'platform'}.`;
+          const intro = buildIntroMessage(assistantName, name || platform.instituteName || siteUrl);
           addMessage('bot', intro);
         } catch (err) {
           // ignore if addMessage fails

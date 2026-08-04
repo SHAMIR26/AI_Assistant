@@ -212,7 +212,7 @@
 
     const frame = document.createElement('iframe');
     frame.className = 'frame';
-    frame.title = snippetAssistantName ? `${snippetAssistantName} - AI Assistant` : 'LICONR AI Chat Assistant';
+    frame.title = snippetAssistantName ? `${snippetAssistantName} - AI Assistant` : 'LICOASS AI Chat Assistant';
     const params = new URLSearchParams({ embed: '1' });
     if (clientId) params.set('clientId', clientId);
     if (embedToken) params.set('embedToken', embedToken);
@@ -233,7 +233,7 @@
     const logoImg = document.createElement('img');
     logoImg.className = 'launcher-logo';
     logoImg.src = resolveAssetUrl(snippetAssistantImage, baseUrl) || `${baseUrl}/liconr-logo.png`;
-    logoImg.alt = snippetAssistantName || 'LICONR AI';
+    logoImg.alt = snippetAssistantName || 'LICOASS';
     logoImg.draggable = false;
     logoImg.onerror = () => {
       if (logoImg.dataset.fallbackApplied === '1') return;

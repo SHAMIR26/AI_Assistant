@@ -424,7 +424,7 @@ async function fetchHtml(url) {
     const response = await fetch(url, {
       signal: controller.signal,
       headers: {
-        'User-Agent': 'LICONR-AI-Assistant-Setup/1.0',
+        'User-Agent': 'LICOASS-AI-Assistant-Setup/1.0',
         Accept: 'text/html,application/xhtml+xml'
       }
     });
@@ -1642,7 +1642,7 @@ app.get('/api/platform/status', (req, res) => {
           updatedAt: activePlatform.updatedAt,
           knowledge: activePlatform.knowledge,
           conversationLog: activePlatform.conversationLog,
-          assistantName: activePlatform.assistantName || 'BLUENINE',
+          assistantName: activePlatform.assistantName || 'LICOASS',
           assistantImage: resolveAssistantImageUrl(req, activePlatform.assistantImage),
           embedScript: `${getPublicBaseUrl(req)}/embed.js`,
           integrationCode: activePlatform.integrationCode || (organization ? buildEmbedScript(req, organization) : null),
@@ -1693,7 +1693,7 @@ app.post('/api/platform/setup', async (req, res) => {
 
     if (!termsAccepted) {
       return res.status(400).json({
-        error: 'You must agree to the LICONR terms and confirm setup authority.'
+        error: 'You must agree to the LICOASS terms and confirm setup authority.'
       });
     }
 
@@ -1722,7 +1722,7 @@ app.post('/api/platform/setup', async (req, res) => {
       : (existingOrganization?.assistantImage || null);
     const resolvedAssistantName = String(assistantName || '').trim()
       || existingOrganization?.assistantName
-      || 'BLUENINE';
+      || 'LICOASS';
 
     const config = {
       clientId,
@@ -1781,7 +1781,7 @@ app.post('/api/platform/setup', async (req, res) => {
         headerIcons: organization.headerIcons || defaultHeaderIcons,
         knowledge: organization.knowledge,
         conversationLog: organization.conversationLog,
-        assistantName: organization.assistantName || 'BLUENINE',
+        assistantName: organization.assistantName || 'LICOASS',
         assistantImage: resolveAssistantImageUrl(req, organization.assistantImage)
       },
       platforms: organizationRegistry.map((item) => ({
@@ -1923,7 +1923,7 @@ async function sendInvoiceEmail(payment) {
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width,initial-scale=1"/>
-  <title>LICONR AI Invoice</title>
+  <title>LICOASS Invoice</title>
 </head>
 <body style="margin:0;padding:0;background:#f1f5f9;font-family:Inter,system-ui,Arial,sans-serif;">
   <table width="100%" cellpadding="0" cellspacing="0" style="padding:40px 16px;">
@@ -1932,7 +1932,7 @@ async function sendInvoiceEmail(payment) {
         <!-- Header -->
         <tr>
           <td style="background:linear-gradient(135deg,#2563eb,#9333ea);padding:36px 40px;text-align:center;">
-            <p style="margin:0;font-size:2rem;font-weight:900;letter-spacing:.15em;color:#ffffff;text-transform:uppercase;">LICONR AI</p>
+            <p style="margin:0;font-size:2rem;font-weight:900;letter-spacing:.15em;color:#ffffff;text-transform:uppercase;">LICOASS</p>
             <p style="margin:8px 0 0;color:rgba(255,255,255,.85);font-size:.95rem;">Subscription Invoice</p>
           </td>
         </tr>
@@ -1968,7 +1968,7 @@ async function sendInvoiceEmail(payment) {
                 <th align="right" style="padding:12px 18px;font-size:.78rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.06em;">Amount</th>
               </tr>
               <tr>
-                <td style="padding:16px 18px;color:#1e293b;font-size:.95rem;">LICONR AI — ${escapeHtml(payment.plan || 'Standard')} Plan<br/><span style="font-size:.82rem;color:#64748b;">Monthly subscription</span></td>
+                <td style="padding:16px 18px;color:#1e293b;font-size:.95rem;">LICOASS — ${escapeHtml(payment.plan || 'Standard')} Plan<br/><span style="font-size:.82rem;color:#64748b;">Monthly subscription</span></td>
                 <td align="right" style="padding:16px 18px;font-weight:700;font-size:1.05rem;color:#1e293b;">$${escapeHtml(payment.amount)} ${escapeHtml(payment.currency || 'USD')}</td>
               </tr>
               <tr style="background:#f8fafc;">
@@ -1989,7 +1989,7 @@ async function sendInvoiceEmail(payment) {
         <!-- Footer -->
         <tr>
           <td style="background:#f8fafc;padding:20px 40px;text-align:center;border-top:1px solid #e2e8f0;">
-            <p style="margin:0;color:#94a3b8;font-size:.8rem;">© ${new Date().getFullYear()} LICONR AI · All Rights Reserved</p>
+            <p style="margin:0;color:#94a3b8;font-size:.8rem;">© ${new Date().getFullYear()} LICOASS · All Rights Reserved</p>
           </td>
         </tr>
       </table>
@@ -2002,8 +2002,8 @@ async function sendInvoiceEmail(payment) {
     from: process.env.SMTP_FROM || process.env.SMTP_USER,
     to: payment.email,
     cc: process.env.SMTP_FROM || process.env.SMTP_USER,
-    subject: `LICONR AI Invoice — ${payment.id || ''}`,
-    text: `LICONR AI Invoice\n\nName: ${payment.name}\nEmail: ${payment.email}\nPlan: ${payment.plan || 'Standard'}\nAmount: $${payment.amount}\nDate: ${new Date(payment.date).toLocaleString()}`,
+    subject: `LICOASS Invoice — ${payment.id || ''}`,
+    text: `LICOASS Invoice\n\nName: ${payment.name}\nEmail: ${payment.email}\nPlan: ${payment.plan || 'Standard'}\nAmount: $${payment.amount}\nDate: ${new Date(payment.date).toLocaleString()}`,
     html
   });
 

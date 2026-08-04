@@ -3,7 +3,7 @@
 <head>
 	<meta charset="utf-8" />
 	<meta name="viewport" content="width=device-width,initial-scale=1" />
-	<title>Payment - LICONOR AI</title>
+	<title>Payment - LICOASS</title>
 	<style>
 		body{font-family:Inter,system-ui,Segoe UI,Arial;background:#0b1020;color:#e6eef8;min-height:100vh;display:flex;align-items:center;justify-content:center}
 		.card{background:#0f1724;padding:28px;border-radius:12px;max-width:720px;width:96%;box-shadow:0 8px 30px rgba(0,0,0,0.6)}
@@ -102,7 +102,7 @@
 			var amountVal = parseFloat(document.getElementById('amount').value).toFixed(2);
 
 			// Check local storage to decide returnUrl before contacting the server
-			var storedBefore = JSON.parse(window.localStorage.getItem('liconr_payments') || '[]');
+			var storedBefore = JSON.parse(window.localStorage.getItem('licoass_payments') || '[]');
 			var existsBefore = storedBefore.some(function (it) {
 				return (it.email || '').toLowerCase() === (emailVal || '').toLowerCase();
 			});
@@ -170,7 +170,7 @@
 		function createInvoicePdf(payment) {
 			var doc = new window.jspdf.jsPDF({ unit: 'pt', format: 'letter' });
 			doc.setFontSize(20);
-			doc.text('LICONR AI Invoice', 40, 50);
+			doc.text('LICOASS Invoice', 40, 50);
 			doc.setFontSize(10);
 			doc.text('Invoice ID: ' + payment.id, 40, 76);
 			doc.text('Date: ' + formatInvoiceDate(payment.date), 40, 92);
@@ -192,7 +192,7 @@
 			doc.text('$' + payment.amount + ' ' + (payment.currency || 'USD'), 40, lineY + 54);
 			doc.setTextColor('#000');
 			doc.setFontSize(10);
-			doc.text('Thank you for your subscription to LICONR AI. This invoice was generated automatically for your payment request.', 40, lineY + 90, { maxWidth: 500 });
+			doc.text('Thank you for your subscription to LICOASS. This invoice was generated automatically for your payment request.', 40, lineY + 90, { maxWidth: 500 });
 			return doc.output('blob');
 		}
 
@@ -242,7 +242,7 @@
 		}
 
 		function savePaymentRecord(payment, updateIfExists) {
-			var stored = JSON.parse(window.localStorage.getItem('liconr_payments') || '[]');
+			var stored = JSON.parse(window.localStorage.getItem('licoass_payments') || '[]');
 			var email = (payment.email || '').toLowerCase();
 			if (updateIfExists) {
 				var found = false;
@@ -257,7 +257,7 @@
 			} else {
 				stored.push(payment);
 			}
-			window.localStorage.setItem('liconr_payments', JSON.stringify(stored));
+			window.localStorage.setItem('licoass_payments', JSON.stringify(stored));
 		}
 	</script>
 </body>
