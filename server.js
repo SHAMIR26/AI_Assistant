@@ -496,13 +496,8 @@ async function collectWebsiteKnowledge(config) {
     pages
   };
 
-  const faqSection = Array.isArray(config.faqs) && config.faqs.length
-    ? ['FAQs:', ...config.faqs.map((faq, index) => {
-        const title = faq.question ? `${index + 1}. ${faq.question}` : `${index + 1}. FAQ`;
-        const answer = faq.answer ? `Answer: ${faq.answer}` : 'Answer: (no answer provided)';
-        return `${title}\n${answer}`;
-      })].join('\n\n')
-    : '';
+  // FAQ section removed from collected text
+  const faqSection = '';
 
   const textContent = [
     `# ${config.instituteName}`,
@@ -510,7 +505,7 @@ async function collectWebsiteKnowledge(config) {
     `Collected at: ${collectedAt}`,
     '',
     config.platformSummary ? `Platform summary:\n${config.platformSummary}` : '',
-    faqSection ? `${faqSection}` : '',
+    // FAQ section removed
     '',
     pages.map(pageToText).filter(Boolean).join('\n\n---\n\n')
   ].filter(Boolean).join('\n');
@@ -1677,7 +1672,6 @@ app.post('/api/platform/setup', async (req, res) => {
       servicePlan,
       platformSummary,
       termsAccepted,
-      faqs,
       agentActions,
       assistantName,
       assistantImage
@@ -1697,12 +1691,7 @@ app.post('/api/platform/setup', async (req, res) => {
       });
     }
 
-    const platformFaqs = Array.isArray(faqs)
-      ? faqs.map((faq) => ({
-          question: String(faq?.question || '').trim(),
-          answer: String(faq?.answer || '').trim()
-        })).filter((faq) => faq.question || faq.answer)
-      : [];
+    // FAQs removed from setup payload
 
     // Look up any existing organization for this platform URL BEFORE we
     // touch assistant appearance fields. The "AI Assistant" section of the
@@ -1738,7 +1727,7 @@ app.post('/api/platform/setup', async (req, res) => {
       assistantName: resolvedAssistantName,
       assistantImage: storedAssistantImage,
       headerIcons: defaultHeaderIcons,
-      faqs: platformFaqs,
+      // FAQs removed
       agentActions: normalizeAgentActions(agentActions, normalizedUrl),
       termsAccepted: Boolean(termsAccepted),
       permissions: {},

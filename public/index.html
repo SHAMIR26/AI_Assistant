@@ -16,10 +16,10 @@
       gap: 10px;
     }
 
-    .menu-button {
+    .icon-button {
       border: 1px solid rgba(255,255,255,.12);
       background: rgba(255,255,255,.04);
-      color: inherit;
+      color: #cbd5e1;
       width: 44px;
       height: 44px;
       border-radius: 14px;
@@ -27,51 +27,28 @@
       align-items: center;
       justify-content: center;
       cursor: pointer;
-      transition: transform .18s ease, background .18s ease, border-color .18s ease;
+      text-decoration: none;
+      transition: transform .18s ease, background .18s ease, border-color .18s ease, color .18s ease;
     }
 
-    .menu-button:hover {
+    .icon-button:hover,
+    .icon-button:focus-visible {
       transform: translateY(-1px);
-      border-color: rgba(96,165,250,.35);
-      background: rgba(96,165,250,.08);
+      border-color: rgba(96,165,250,.4);
+      background: rgba(96,165,250,.1);
+      color: #93c5fd;
     }
 
-    .hamburger-line {
+    .icon-button.is-active {
+      border-color: rgba(96,165,250,.5);
+      background: rgba(96,165,250,.14);
+      color: #60a5fa;
+    }
+
+    .icon-svg {
+      width: 22px;
+      height: 22px;
       display: block;
-      width: 18px;
-      height: 2px;
-      background: currentColor;
-      border-radius: 999px;
-      box-shadow: 0 6px 0 0 currentColor, 0 -6px 0 0 currentColor;
-    }
-
-    .header-menu {
-      position: absolute;
-      top: calc(100% + 10px);
-      right: 0;
-      width: 220px;
-      background: rgba(8, 12, 24, 0.98);
-      border: 1px solid rgba(148, 163, 184, 0.14);
-      border-radius: 18px;
-      box-shadow: 0 32px 70px rgba(0, 0, 0, 0.24);
-      padding: 8px 0;
-      z-index: 10;
-    }
-
-    .menu-item {
-      width: 100%;
-      border: none;
-      background: transparent;
-      color: #edf2fb;
-      padding: 12px 18px;
-      text-align: left;
-      font-size: 0.98rem;
-      cursor: pointer;
-      transition: background .18s ease;
-    }
-
-    .menu-item:hover {
-      background: rgba(96, 165, 250, 0.08);
     }
 
     .profile-panel,
@@ -103,8 +80,7 @@
     }
 
     .profile-panel.hidden,
-    .panel-overlay.hidden,
-    .header-menu[hidden] {
+    .panel-overlay.hidden {
       display: none!important;
     }
 
@@ -169,18 +145,23 @@
   <nav class="site-nav" aria-label="Primary">
     <div class="container nav-container">
       <a class="logo-container" href="#top" aria-label="LICOASS home">
-        <img src="/liconr-logo.png" alt="LICOASS" style="height:28px;display:inline-block;margin-right:10px;vertical-align:middle;" />
+        <div style="display:flex;align-items:center;gap:10px;"><img src="/liconr-logo.png" alt="LICOASS" style="width:36px;height:36px;border-radius:999px;object-fit:cover;margin-right:8px;" /></div>
         <span class="logo-text">LICOASS</span>
       </a> 
 
       <div class="header-actions">
-        <button id="index-menu-toggle" class="menu-button" type="button" aria-haspopup="true" aria-expanded="false" aria-label="Open menu">
-          <span class="hamburger-line"></span>
+        <button id="index-profile-toggle" class="icon-button" type="button" aria-label="Open profile" title="Profile">
+          <svg class="icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+            <circle cx="12" cy="7" r="4" />
+          </svg>
         </button>
-        <div id="index-header-menu" class="header-menu" hidden>
-          <button type="button" class="menu-item" data-action="profile">Profile</button>
-          <button type="button" class="menu-item" data-action="settings">Settings</button>
-        </div>
+        <a id="index-settings-link" class="icon-button" href="settings.html" aria-label="Open settings" title="Settings">
+          <svg class="icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z" />
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z" />
+          </svg>
+        </a>
       </div>
     </div>
   </nav>
@@ -193,6 +174,7 @@
       </div>
       <button id="index-profile-close" type="button" class="close-button" aria-label="Close profile">×</button>
     </div>
+    <p style="margin:0 0 -6px;"><a id="index-profile-full-link" href="profile.html" style="color:#60a5fa;text-decoration:none;font-weight:600;font-size:0.92rem;">Open full profile →</a></p>
 
     <div class="profile-row">
       <div>
@@ -226,15 +208,10 @@
     <section class="hero" aria-labelledby="hero-title">
       <div class="container hero-grid">
         <div class="hero-copy">
-          <div class="badge"><h2>1. AI Assistants For Platforms</h2></div>
-          <p id="hero-title">Turn every platform into an intelligent AI-powered assistant. Launch your product-aware assistant today.</p>
-          <p>LICOASS trains on your product and knowledge base to answer questions, guide users, and resolve issues — embedded directly in your website or app. 
-          Give visitors instant answers, guided journeys, and a polished experience without building a support team from scratch.</p>
+          <div class="badge"><h2>AI Assistants For Platforms</h2></div>
+          <h2 id="hero-title">Turn your platform into an intelligent AI-powered assistant.</h2><br>
           <div class="hero-buttons">
-            <a class="btn btn-primary" href="howitworks.html">How it works..?</a>
-          </div><br>
-          <div class="hero-buttons">
-            <a class="btn btn-secondary" href="contact.html">Contact us</a>
+            <a class="btn btn-primary" href="contact.html">Contact us</a>
           </div>
         </div>
 
@@ -251,7 +228,7 @@
               <div class="mockup-line short"></div>
               <div class="mockup-line long"></div>
               <div class="mockup-line medium"></div>
-              <div class="mockup-tag">AI-powered platform assistant · 99.9% uptime</div>
+              <div class="mockup-tag">How it works</div>
             </div>
           </div>
         </div>
@@ -261,8 +238,8 @@
     <section id="features" class="section">
       <div class="container">
         <h2 class="section-title">Built for modern digital experiences</h2>
-        <p class="section-subtitle">LICOASS combines smart training, product-aware responses, and elegant design to help users get what they need faster.
-        </p>
+        <h2 class="section-subtitle">LICOASS combines smart training, product-aware responses to help users get what they need faster.
+        </h2>
         <div class="features-grid">
           <article class="feature-card">
             <h3>Platform-aware intelligence</h3>
@@ -287,7 +264,7 @@
     <section id="pricing" class="section">
       <div class="container">
         <h2 class="section-title">Flexible pricing for every stage</h2>
-        <p class="section-subtitle">Choose the plan that fits your growth, from early launches to enterprise-scale deployments.</p>
+        <h2 class="section-subtitle">Choose the plan that fits your growth, from early launches to enterprise-scale deployments.</h2>
         <div class="pricing-grid">
           <article class="price-card featured">
             <h3>Mini</h3>
@@ -349,8 +326,7 @@
       });
     });
 
-    const indexMenuToggle = document.getElementById('index-menu-toggle');
-    const indexHeaderMenu = document.getElementById('index-header-menu');
+    const indexProfileToggle = document.getElementById('index-profile-toggle');
     const indexProfilePanel = document.getElementById('index-profile-panel');
     const indexProfileClose = document.getElementById('index-profile-close');
     const indexPanelOverlay = document.getElementById('index-panel-overlay');
@@ -412,6 +388,10 @@
     }
 
     function renderIndexProfilePanel() {
+      const fullProfileLink = document.getElementById('index-profile-full-link');
+      if (fullProfileLink && indexUserProfile.email) {
+        fullProfileLink.href = `profile.html?email=${encodeURIComponent(indexUserProfile.email)}`;
+      }
       indexProfileName.textContent = indexUserProfile.fullName || 'Not available';
       indexProfileMobile.textContent = indexUserProfile.mobileNumber || 'Not available';
       indexProfileEmail.textContent = indexUserProfile.email || 'Not available';
@@ -436,56 +416,33 @@
       }
     }
 
-    function closeIndexHeaderMenu() {
-      indexHeaderMenu.hidden = true;
-      indexMenuToggle.setAttribute('aria-expanded', 'false');
-    }
-
     function openIndexProfilePanel() {
-      closeIndexHeaderMenu();
       indexProfilePanel.classList.remove('hidden');
       indexPanelOverlay.classList.remove('hidden');
+      indexProfileToggle?.classList.add('is-active');
     }
 
     function closeIndexProfilePanel() {
       indexProfilePanel.classList.add('hidden');
       indexPanelOverlay.classList.add('hidden');
+      indexProfileToggle?.classList.remove('is-active');
     }
 
-    indexMenuToggle?.addEventListener('click', (event) => {
+    indexProfileToggle?.addEventListener('click', (event) => {
       event.stopPropagation();
-      const isOpen = !indexHeaderMenu.hidden;
+      const isOpen = !indexProfilePanel.classList.contains('hidden');
       if (isOpen) {
-        closeIndexHeaderMenu();
+        closeIndexProfilePanel();
       } else {
-        indexHeaderMenu.hidden = false;
-        indexMenuToggle.setAttribute('aria-expanded', 'true');
-      }
-    });
-
-    indexHeaderMenu?.addEventListener('click', (event) => {
-      const button = event.target.closest('[data-action]');
-      if (!button) return;
-      const action = button.dataset.action;
-      if (action === 'profile') {
         openIndexProfilePanel();
-      } else if (action === 'settings') {
-        window.location.href = 'settings.html';
       }
     });
 
     indexProfileClose?.addEventListener('click', closeIndexProfilePanel);
     indexPanelOverlay?.addEventListener('click', closeIndexProfilePanel);
 
-    document.addEventListener('click', (event) => {
-      if (!indexHeaderMenu.contains(event.target) && event.target !== indexMenuToggle) {
-        closeIndexHeaderMenu();
-      }
-    });
-
     document.addEventListener('keydown', (event) => {
       if (event.key === 'Escape') {
-        closeIndexHeaderMenu();
         closeIndexProfilePanel();
       }
     });
@@ -531,4 +488,4 @@
     document.addEventListener('DOMContentLoaded', loadHeaderIconConfig);
   </script>
 </body>
-</html>    
+</html>

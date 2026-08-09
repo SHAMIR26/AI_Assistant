@@ -17,11 +17,11 @@ const embeddedToken = urlParams.get('embedToken') || '';
 const embeddedSiteUrl = urlParams.get('siteUrl') || '';
 const isEmbedded = urlParams.get('embed') === '1';
 const selectedPlan = urlParams.get('plan') || '';
-const faqList = document.getElementById('faq-list');
+// FAQ UI removed
 const formError = document.getElementById('form-error');
-const addFaqButton = document.getElementById('add-faq-button');
+// const addFaqButton removed
 const postRegistrationRedirectKey = 'licoass:redirect-to-index-after-refresh';
-let faqIndex = 1;
+// faqIndex removed
 let setupRefreshTimer = null;
 let platformSetupAbortController = null;
 const agentActionLabels = {
@@ -61,45 +61,7 @@ function clearFormError() {
   formError.style.display = 'none';
 }
 
-function refreshFaqLabels() {
-  const items = Array.from(faqList?.querySelectorAll('.faq-item') || []);
-  items.forEach((item, index) => {
-    const questionLabel = item.querySelector('.faq-question-label');
-    if (questionLabel) {
-      questionLabel.firstChild.textContent = `${index + 1}. FAQ question`;
-    }
-  });
-}
-
-function attachFaqRemoveHandler(item) {
-  const removeButton = item.querySelector('.faq-remove-button');
-  if (!removeButton) return;
-
-  removeButton.addEventListener('click', () => {
-    item.remove();
-    refreshFaqLabels();
-  });
-}
-
-function createFaqItem() {
-  faqIndex += 1;
-  const item = document.createElement('div');
-  item.className = 'faq-item';
-  item.innerHTML = `
-    <label class="faq-question-label">
-      ${faqIndex}. FAQ question
-      <input type="text" name="faqQuestion[]" placeholder="What should the assistant answer?" />
-    </label>
-    <label>
-      Answer
-      <textarea name="faqAnswer[]" rows="3" placeholder="Provide the answer the assistant should use."></textarea>
-    </label>
-    <button type="button" class="faq-remove-button">Remove</button>
-  `;
-
-  attachFaqRemoveHandler(item);
-  faqList?.appendChild(item);
-}
+// FAQ functions removed
 
 if (isEmbedded) {
   document.body.classList.add('is-embedded');
@@ -118,12 +80,7 @@ if (selectedPlan) {
   }
 }
 
-Array.from(faqList?.querySelectorAll('.faq-item') || []).forEach((item, index) => {
-  faqIndex = Math.max(faqIndex, index + 1);
-  attachFaqRemoveHandler(item);
-});
-
-addFaqButton?.addEventListener('click', createFaqItem);
+// FAQ initialization removed
 
 // Render the registration result card in the display box
 function showResultCard({ instituteName, chatLink, integrationCode }) {
@@ -319,14 +276,7 @@ platformForm.addEventListener('submit', async (event) => {
   clearFormError();
   const formData = new FormData(platformForm);
 
-  const faqQuestions = formData.getAll('faqQuestion[]').map((value) => String(value || '').trim());
-  const faqAnswers = formData.getAll('faqAnswer[]').map((value) => String(value || '').trim());
-  const faqItems = faqQuestions.map((question, index) => ({
-    question,
-    answer: faqAnswers[index] || ''
-  }));
-  const validFaqs = faqItems.filter((faq) => faq.question && faq.answer);
-  const incompleteFaqCount = faqItems.filter((faq) => (faq.question && !faq.answer) || (!faq.question && faq.answer)).length;
+  // FAQ processing removed
 
   const requiredFields = ['instituteName', 'platformUrl', 'ownerEmail', 'contactName', 'organizationType', 'platformSummary'];
   const missingField = requiredFields.find((name) => !String(formData.get(name) || '').trim());
@@ -335,17 +285,7 @@ platformForm.addEventListener('submit', async (event) => {
     return;
   }
 
-  if (incompleteFaqCount > 0) {
-    showFormError('Please complete every FAQ with both a question and an answer.');
-    return;
-  }
-
-  if (validFaqs.length < 3) {
-    showFormError('Please provide at least 3 complete FAQs with answers.');
-    return;
-  }
-
-  const faqs = validFaqs;
+  // FAQ validation removed
   // Read optional assistant fields (name + image). If an image is provided,
   // convert it to a data URL so the server can persist it as part of the
   // platform configuration (no multipart upload required).
@@ -382,7 +322,7 @@ platformForm.addEventListener('submit', async (event) => {
     servicePlan: formData.get('servicePlan'),
     platformSummary: formData.get('platformSummary'),
     termsAccepted: formData.get('termsAccepted') === 'on',
-    faqs,
+    // FAQs removed
     agentActions,
     assistantName,
     assistantImage: assistantImageDataUrl
