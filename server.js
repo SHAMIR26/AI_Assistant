@@ -225,30 +225,200 @@ async function ensureAssistantAssetDir() {
   await fs.mkdir(assistantAssetDir, { recursive: true });
 }
 
-const userProfilesFile = path.join(databaseDir, 'User_Profiles.json');
+// User profiles are stored under Database/Profiles/<slug-of-email>/ — one
+// folder per person, mirroring the per-platform folders under Database/.
+// Each folder holds:
+//   basic_info.json  -> identity fields (name, email, mobile, plan, etc.)
+//   activity.json     -> append-only log of everything that happened on the
+//                        account (profile created/edited, websites
+//                        registered through the AI Assistant for Platform
+//                        service, plan changes, etc.)
+const profilesRootDir = path.join(databaseDir, 'Profiles');
+const legacyProfilesRootDir = path.join(databaseDir, 'Profile');
+const legacyUserProfilesFile = path.join(databaseDir, 'User_Profiles.json');
 
-async function ensureUserProfilesFile() {
+async function ensureProfilesRootDir() {
   await ensureDatabaseDir();
+  await fs.mkdir(profilesRootDir, { recursive: true });
+}
+
+function profileFolderSlug(email) {
+  return safeSlug(email || 'user') || 'user';
+}
+
+function getProfileStoragePaths(email) {
+  const folderName = profileFolderSlug(email);
+  const profileDir = path.join(profilesRootDir, folderName);
+  return {
+    folderName,
+    profileDir,
+    basicInfoPath: path.join(profileDir, 'basic_info.json'),
+    activityPath: path.join(profileDir, 'activity.json')
+  };
+}
+
+async function ensureProfileFolder(email) {
+  await ensureProfilesRootDir();
+  const paths = getProfileStoragePaths(email);
+  await fs.mkdir(paths.profileDir, { recursive: true });
+  return paths;
+}
+
+async function migrateLegacyProfileFolder() {
   try {
-    await fs.access(userProfilesFile);
+    const entries = await fs.readdir(legacyProfilesRootDir, { withFileTypes: true });
+    if (!entries.length) return;
+
+    await ensureProfilesRootDir();
+    for (const entry of entries) {
+      if (!entry.isDirectory()) continue;
+      const source = path.join(legacyProfilesRootDir, entry.name);
+      const destination = path.join(profilesRootDir, entry.name);
+      try {
+        await fs.access(destination);
+        continue; // already migrated
+      } catch (error) {
+        // destination doesn't exist yet — move it over
+      }
+      await fs.rename(source, destination);
+    }
+
+    const remaining = await fs.readdir(legacyProfilesRootDir);
+    if (!remaining.length) await fs.rmdir(legacyProfilesRootDir);
   } catch (error) {
-    await fs.writeFile(userProfilesFile, '[]', 'utf8');
+    if (error.code !== 'ENOENT') {
+      console.error('Failed to migrate legacy Profile folder:', error?.message || error);
+    }
+  }
+}
+
+async function migrateLegacyUserProfilesFile() {
+  try {
+    const raw = await fs.readFile(legacyUserProfilesFile, 'utf8');
+    const legacyProfiles = JSON.parse(raw);
+    if (!Array.isArray(legacyProfiles) || !legacyProfiles.length) return;
+
+    for (const profile of legacyProfiles) {
+      if (!profile?.email) continue;
+      const paths = await ensureProfileFolder(profile.email);
+      try {
+        await fs.access(paths.basicInfoPath);
+        continue; // already migrated
+      } catch (error) {
+        // no basic_info.json yet — migrate it below
+      }
+      await fs.writeFile(paths.basicInfoPath, JSON.stringify(profile, null, 2), 'utf8');
+      await fs.writeFile(paths.activityPath, JSON.stringify([
+        { type: 'profile-created', message: 'Profile created.', timestamp: profile.createdAt || new Date().toISOString() }
+      ], null, 2), 'utf8');
+    }
+
+    await fs.rename(legacyUserProfilesFile, `${legacyUserProfilesFile}.migrated`);
+  } catch (error) {
+    if (error.code !== 'ENOENT') {
+      console.error('Failed to migrate legacy user profiles file:', error?.message || error);
+    }
   }
 }
 
 async function loadUserProfilesFile() {
-  await ensureUserProfilesFile();
-  const raw = await fs.readFile(userProfilesFile, 'utf8');
+  await ensureProfilesRootDir();
+  await migrateLegacyProfileFolder();
+  await migrateLegacyUserProfilesFile();
+
+  const profiles = [];
   try {
-    return JSON.parse(raw);
+    const entries = await fs.readdir(profilesRootDir, { withFileTypes: true });
+    for (const entry of entries) {
+      if (!entry.isDirectory()) continue;
+      const basicInfoPath = path.join(profilesRootDir, entry.name, 'basic_info.json');
+      try {
+        const content = await fs.readFile(basicInfoPath, 'utf8');
+        const profile = JSON.parse(content);
+        if (profile?.email) profiles.push(profile);
+      } catch (error) {
+        if (error.code !== 'ENOENT') {
+          console.error(`Failed to load ${basicInfoPath}:`, error?.message || error);
+        }
+      }
+    }
+  } catch (error) {
+    console.error('Failed to load user profiles:', error?.message || error);
+  }
+
+  profiles.sort((a, b) => String(a.createdAt || '').localeCompare(String(b.createdAt || '')));
+  return profiles;
+}
+
+async function loadProfileActivity(email) {
+  const paths = getProfileStoragePaths(email);
+  try {
+    const raw = await fs.readFile(paths.activityPath, 'utf8');
+    const entries = JSON.parse(raw);
+    return Array.isArray(entries) ? entries : [];
   } catch (error) {
     return [];
   }
 }
 
-async function saveUserProfilesFile(profiles) {
-  await ensureDatabaseDir();
-  await fs.writeFile(userProfilesFile, JSON.stringify(profiles, null, 2), 'utf8');
+async function appendProfileActivity(email, entry) {
+  const paths = await ensureProfileFolder(email);
+  let entries = [];
+  try {
+    const raw = await fs.readFile(paths.activityPath, 'utf8');
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed)) entries = parsed;
+  } catch (error) {
+    // no activity log yet — start a new one
+  }
+
+  entries.push({
+    timestamp: new Date().toISOString(),
+    ...entry
+  });
+
+  await fs.writeFile(paths.activityPath, JSON.stringify(entries, null, 2), 'utf8');
+  return entries;
+}
+
+async function saveUserProfileRecord(profile) {
+  const paths = await ensureProfileFolder(profile.email);
+  await fs.writeFile(paths.basicInfoPath, JSON.stringify(profile, null, 2), 'utf8');
+}
+
+// Cross-references a profile's email against every registered platform
+// (Database/<Platform>/basic_info.json, loaded into organizationRegistry)
+// to report whether this person uses the "AI Assistant for Platform"
+// service, and on which website(s) with which pricing plan.
+function getPlatformsForEmail(email) {
+  const normalizedEmail = String(email || '').trim().toLowerCase();
+  if (!normalizedEmail) return [];
+
+  return organizationRegistry
+    .filter((organization) => String(organization.ownerEmail || '').trim().toLowerCase() === normalizedEmail)
+    .map((organization) => ({
+      url: organization.platformUrl,
+      plan: organization.plan || 'Mini',
+      instituteName: organization.instituteName,
+      servicePlan: organization.servicePlan || 'AI WebApp Personalized Chat Assistant',
+      status: organization.status || 'active',
+      registeredAt: organization.createdAt
+    }))
+    .sort((a, b) => String(a.registeredAt || '').localeCompare(String(b.registeredAt || '')));
+}
+
+async function enrichProfileWithServices(profile, options = {}) {
+  if (!profile) return profile;
+  const registeredSites = getPlatformsForEmail(profile.email);
+  const enriched = {
+    ...profile,
+    registeredSites,
+    usesAiAssistant: registeredSites.length > 0
+  };
+  if (options.withActivity) {
+    enriched.activity = await loadProfileActivity(profile.email);
+  }
+  return enriched;
 }
 
 function normalizeProfilePayload(payload) {
@@ -1430,15 +1600,20 @@ app.get('/api/user-profiles', async (req, res) => {
 
     if (requestedEmail) {
       const profile = profiles.find((item) => (item.email || '').toLowerCase() === requestedEmail);
-      return res.json({ profile: profile || null, profilesCount: profiles.length });
+      const enriched = profile ? await enrichProfileWithServices(profile, { withActivity: true }) : null;
+      return res.json({ profile: enriched, profilesCount: profiles.length });
     }
 
     if (requestedId) {
       const profile = profiles.find((item) => item.id === requestedId);
-      return res.json({ profile: profile || null, profilesCount: profiles.length });
+      const enriched = profile ? await enrichProfileWithServices(profile, { withActivity: true }) : null;
+      return res.json({ profile: enriched, profilesCount: profiles.length });
     }
 
-    return res.json({ profiles, profilesCount: profiles.length });
+    const enrichedProfiles = await Promise.all(
+      profiles.map((profile) => enrichProfileWithServices(profile))
+    );
+    return res.json({ profiles: enrichedProfiles, profilesCount: profiles.length });
   } catch (error) {
     console.error('Failed to load user profiles:', error?.message || error);
     return res.status(500).json({ error: 'Unable to load user profiles.' });
@@ -1454,25 +1629,39 @@ app.post('/api/user-profiles', async (req, res) => {
 
     const profiles = await loadUserProfilesFile();
     const existingIndex = profiles.findIndex((item) => (item.email || '').toLowerCase() === normalized.email);
+    const existing = existingIndex >= 0 ? profiles[existingIndex] : null;
     const now = new Date().toISOString();
     const profile = {
-      id: existingIndex >= 0 ? profiles[existingIndex].id : `profile-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      id: existing ? existing.id : `profile-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
       fullName: normalized.fullName,
       email: normalized.email,
       mobileNumber: normalized.mobileNumber,
       plan: normalized.plan,
-      createdAt: existingIndex >= 0 ? profiles[existingIndex].createdAt : now,
+      createdAt: existing ? existing.createdAt : now,
       updatedAt: now
     };
 
-    if (existingIndex >= 0) {
-      profiles[existingIndex] = profile;
+    await saveUserProfileRecord(profile);
+
+    if (!existing) {
+      await appendProfileActivity(profile.email, {
+        type: 'profile-created',
+        message: `Profile created (${profile.plan} plan).`
+      });
     } else {
-      profiles.push(profile);
+      const changedFields = ['fullName', 'mobileNumber', 'plan'].filter(
+        (field) => String(existing[field] || '') !== String(profile[field] || '')
+      );
+      await appendProfileActivity(profile.email, {
+        type: 'profile-updated',
+        message: changedFields.length
+          ? `Profile updated (${changedFields.join(', ')}).`
+          : 'Profile updated.'
+      });
     }
 
-    await saveUserProfilesFile(profiles);
-    return res.status(201).json({ profile, profilesCount: profiles.length });
+    const enriched = await enrichProfileWithServices(profile, { withActivity: true });
+    return res.status(201).json({ profile: enriched, profilesCount: existing ? profiles.length : profiles.length + 1 });
   } catch (error) {
     console.error('Failed to save user profile:', error?.message || error);
     return res.status(500).json({ error: 'Unable to save user profile.' });
@@ -1749,6 +1938,28 @@ app.post('/api/platform/setup', async (req, res) => {
     });
     organization.integrationCode = buildEmbedScript(req, organization);
     await writeOrganizationBasicInfo(organization);
+
+    // If the owner email matches an existing LICOASS user profile, record
+    // this website registration in that profile's activity log so it shows
+    // up under "AI Assistant for Platform" on their profile page.
+    try {
+      const matchingProfiles = await loadUserProfilesFile();
+      const ownerHasProfile = matchingProfiles.some(
+        (item) => (item.email || '').toLowerCase() === organization.ownerEmail.toLowerCase()
+      );
+      if (ownerHasProfile) {
+        const activityType = existingOrganization ? 'website-updated' : 'website-registered';
+        const activityMessage = existingOrganization
+          ? `Updated AI Assistant for Platform on ${organization.platformUrl} (${organization.plan} plan).`
+          : `Registered AI Assistant for Platform on ${organization.platformUrl} (${organization.plan} plan).`;
+        await appendProfileActivity(organization.ownerEmail, {
+          type: activityType,
+          message: activityMessage
+        });
+      }
+    } catch (activityError) {
+      console.error('Failed to log profile activity for platform setup:', activityError?.message || activityError);
+    }
 
     // Build the full response payload first, then send it in one go.
     // Do NOT call res.flushHeaders() before res.json() — on proxied hosts like

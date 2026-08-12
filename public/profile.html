@@ -332,9 +332,43 @@
     .site-card:hover { border-color: rgba(96,165,250,.4); background: rgba(96,165,250,.06); }
     .site-favicon { width: 30px; height: 30px; border-radius: 8px; background: rgba(96,165,250,.15); display: flex; align-items: center; justify-content: center; color: #60a5fa; flex-shrink: 0; }
     .site-favicon svg { width: 16px; height: 16px; }
+    .site-url-wrap { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
     .site-url { font-size: 0.92rem; word-break: break-all; }
+    .site-institute { color: var(--text-dim); font-size: 0.78rem; }
+    .site-card .plan-chip { flex-shrink: 0; }
 
     .empty-note { color: var(--text-muted); font-size: 0.92rem; line-height: 1.6; }
+
+    /* ---------- Services ---------- */
+    .service-row {
+      display: flex;
+      align-items: flex-start;
+      gap: 14px;
+      padding: 14px;
+      border-radius: 16px;
+      background: rgba(255,255,255,0.03);
+      border: 1px solid var(--border);
+    }
+    .service-icon {
+      width: 44px; height: 44px; border-radius: 13px; flex-shrink: 0;
+      display: flex; align-items: center; justify-content: center;
+      background: linear-gradient(135deg, var(--blue), var(--violet));
+      box-shadow: 0 10px 24px rgba(59,130,246,.28);
+    }
+    .service-icon svg { width: 21px; height: 21px; color: #fff; }
+    .service-info { flex: 1; min-width: 0; }
+    .service-info strong { display: block; font-size: 0.98rem; margin-bottom: 3px; }
+    .service-info span { color: var(--text-muted); font-size: 0.86rem; line-height: 1.5; }
+    .service-status {
+      flex-shrink: 0;
+      display: inline-flex; align-items: center; gap: 5px;
+      padding: 4px 11px; border-radius: 999px;
+      font-size: 0.72rem; font-weight: 800; text-transform: uppercase; letter-spacing: .05em;
+      margin-top: 2px;
+    }
+    .service-status.active { background: rgba(52,211,153,.15); color: #34d399; border: 1px solid rgba(52,211,153,.3); }
+    .service-status.inactive { background: rgba(148,163,184,.14); color: #94a3b8; border: 1px solid rgba(148,163,184,.24); }
+    .service-cta { margin-top: 12px; }
 
     .timeline { display: grid; gap: 14px; }
     .timeline-item { display: flex; gap: 12px; }
@@ -482,6 +516,23 @@
 
         <div style="display:grid;gap:20px;">
           <div class="card">
+            <h2>Services</h2>
+            <div class="service-row">
+              <div class="service-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></svg>
+              </div>
+              <div class="service-info">
+                <strong>AI Assistant for Platform</strong>
+                <span id="service-detail">Checking your service status…</span>
+                <div class="service-cta hidden" id="service-cta">
+                  <a class="btn secondary" href="home.html">Set up AI Assistant</a>
+                </div>
+              </div>
+              <span id="service-status" class="service-status inactive">—</span>
+            </div>
+          </div>
+
+          <div class="card">
             <h2>Registered websites</h2>
             <div id="sites-grid" class="sites-grid"></div>
           </div>
@@ -560,6 +611,9 @@
     const cancelEditBtn = document.getElementById('cancel-edit-btn');
     const continuePaymentBtn = document.getElementById('continue-payment-btn');
     const copyEmailBtn = document.getElementById('copy-email-btn');
+    const serviceStatus = document.getElementById('service-status');
+    const serviceDetail = document.getElementById('service-detail');
+    const serviceCta = document.getElementById('service-cta');
     const tabSettings = document.getElementById('tab-settings');
 
     planInput.value = plan;
@@ -602,6 +656,12 @@
 
     function siteIconSvg() {
       return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M2 12h20"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10Z"/></svg>';
+    }
+
+    function activityDotColor(type) {
+      if (type === 'website-registered' || type === 'website-updated') return '#8b5cf6';
+      if (type === 'profile-updated') return '#60a5fa';
+      return '#34d399';
     }
 
     function showSection(section) {
@@ -654,14 +714,38 @@
       avatar.textContent = initialsFor(profile.fullName);
       avatar.style.background = gradientFor(profile.email || profile.fullName);
 
-      const sitesGrid = document.getElementById('sites-grid');
+      // AI Assistant for Platform service status — a profile "uses" this
+      // service when at least one website has been registered under their
+      // email through the Platform Setup flow (home.html).
       const sites = Array.isArray(profile.registeredSites) ? profile.registeredSites : [];
+      const usesAiAssistant = Boolean(profile.usesAiAssistant) || sites.length > 0;
+      if (usesAiAssistant) {
+        serviceStatus.textContent = 'Active';
+        serviceStatus.className = 'service-status active';
+        const siteWord = sites.length === 1 ? 'website' : 'websites';
+        serviceDetail.textContent = `AI WebApp Personalized Chat Assistant is embedded on ${sites.length} ${siteWord}.`;
+        serviceCta.classList.add('hidden');
+      } else {
+        serviceStatus.textContent = 'Not active';
+        serviceStatus.className = 'service-status inactive';
+        serviceDetail.textContent = 'Set up the AI Assistant for Platform service to embed a chat assistant on your website.';
+        serviceCta.classList.remove('hidden');
+      }
+
+      const sitesGrid = document.getElementById('sites-grid');
       if (sites.length) {
         sitesGrid.innerHTML = sites.map((site) => {
-          const href = site.startsWith('http') ? site : `https://${site}`;
+          const url = typeof site === 'string' ? site : (site.url || '');
+          const plan = typeof site === 'string' ? null : (site.plan || 'Mini');
+          const instituteName = typeof site === 'string' ? '' : (site.instituteName || '');
+          const href = url.startsWith('http') ? url : `https://${url}`;
           return `<a class="site-card" href="${href}" target="_blank" rel="noreferrer noopener">
             <span class="site-favicon">${siteIconSvg()}</span>
-            <span class="site-url">${site}</span>
+            <span class="site-url-wrap">
+              <span class="site-url">${url}</span>
+              ${instituteName ? `<span class="site-institute">${instituteName}</span>` : ''}
+            </span>
+            ${plan ? `<span class="plan-chip ${planClass(plan)}">${plan} plan</span>` : ''}
           </a>`;
         }).join('');
       } else {
@@ -670,16 +754,30 @@
 
       const timeline = document.getElementById('activity-timeline');
       const updated = profile.updatedAt ? new Date(profile.updatedAt) : created;
-      timeline.innerHTML = `
-        <div class="timeline-item">
-          <div class="timeline-dot"></div>
-          <div class="timeline-text"><strong>Profile created</strong><span>${created.toLocaleString()}</span></div>
-        </div>
-        <div class="timeline-item">
-          <div class="timeline-dot" style="background:#60a5fa;box-shadow:0 0 0 4px rgba(96,165,250,.15);"></div>
-          <div class="timeline-text"><strong>Last updated</strong><span>${updated.toLocaleString()}</span></div>
-        </div>
-      `;
+      const serverActivity = Array.isArray(profile.activity) ? profile.activity : [];
+      if (serverActivity.length) {
+        const sortedActivity = [...serverActivity].sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+        timeline.innerHTML = sortedActivity.map((entry) => {
+          const color = activityDotColor(entry.type);
+          return `
+            <div class="timeline-item">
+              <div class="timeline-dot" style="background:${color};box-shadow:0 0 0 4px ${color}26;"></div>
+              <div class="timeline-text"><strong>${entry.message || 'Account activity'}</strong><span>${new Date(entry.timestamp).toLocaleString()}</span></div>
+            </div>
+          `;
+        }).join('');
+      } else {
+        timeline.innerHTML = `
+          <div class="timeline-item">
+            <div class="timeline-dot"></div>
+            <div class="timeline-text"><strong>Profile created</strong><span>${created.toLocaleString()}</span></div>
+          </div>
+          <div class="timeline-item">
+            <div class="timeline-dot" style="background:#60a5fa;box-shadow:0 0 0 4px rgba(96,165,250,.15);"></div>
+            <div class="timeline-text"><strong>Last updated</strong><span>${updated.toLocaleString()}</span></div>
+          </div>
+        `;
+      }
 
       const nextStep = next === 'payment';
       if (nextStep) {
@@ -696,7 +794,9 @@
     function renderCreateForm() {
       isEditing = false;
       formTitle.textContent = 'Set up your profile';
-      formSubtitle.textContent = 'Create your LICOASS account to unlock your dashboard, saved sites, and billing history — stored securely in your profile database.';
+      formSubtitle.textContent = next === 'payment'
+        ? 'One quick step before checkout — create your LICOASS profile with your name, email, and mobile number. We\'ll take you straight to payment right after.'
+        : 'Create your LICOASS account to unlock your dashboard, saved sites, and billing history — stored securely in your profile database.';
       onboardingHero.classList.remove('hidden');
       cancelEditBtn.classList.add('hidden');
       fullNameField.value = '';
@@ -728,15 +828,31 @@
     }
 
     async function loadProfiles() {
+      // A profile is only looked up when we actually know whose it is —
+      // either from the ?email= URL param, or from a known-email cookie
+      // left behind by a previous visit on this browser. We never fall
+      // back to "show some profile from the database" — that would leak
+      // other people's data to a fresh visitor.
+      const knownEmail = email || window.localStorage.getItem('licoass_profile_email') || '';
+
+      if (!knownEmail) {
+        renderCreateForm();
+        return;
+      }
+
       try {
-        const url = email ? `/api/user-profiles?email=${encodeURIComponent(email)}` : '/api/user-profiles';
-        const response = await fetch(url);
+        const response = await fetch(`/api/user-profiles?email=${encodeURIComponent(knownEmail)}`);
         if (!response.ok) throw new Error('Unable to load profile');
         const data = await response.json();
-        const profile = data.profile || (Array.isArray(data.profiles) ? data.profiles[data.profiles.length - 1] : null);
+        const profile = data.profile || null;
+
         if (profile) {
-          renderProfile(profile, data.profiles || [profile]);
+          window.localStorage.setItem('licoass_profile_email', profile.email);
+          renderProfile(profile, [profile]);
         } else {
+          // Known email doesn't match a saved profile (e.g. stale local
+          // data) — clear it and let the person create a fresh profile.
+          window.localStorage.removeItem('licoass_profile_email');
           renderCreateForm();
         }
       } catch (err) {
@@ -792,9 +908,26 @@
           throw new Error((data && data.details && data.details[0]) || (data && data.error) || 'Unable to save profile');
         }
 
+        // Remember this browser's profile so future pricing-plan clicks
+        // (from index.html) recognize the person and skip straight to
+        // checkout instead of asking them to create a profile again.
+        window.localStorage.setItem('licoass_profile_email', data.profile.email);
+
         if (isEditing) {
           isEditing = false;
-          renderProfile(data.profile, currentAllProfiles.map((item) => (item.email === data.profile.email ? data.profile : item)));
+          renderProfile(data.profile, [data.profile]);
+          return;
+        }
+
+        // Profile just created as part of a pricing-plan checkout — go
+        // straight to payment instead of stopping at the profile page.
+        if (next === 'payment' && amount) {
+          const paymentUrl = new URL('payment.html', window.location.href);
+          paymentUrl.searchParams.set('amount', amount);
+          paymentUrl.searchParams.set('plan', data.profile.plan || plan);
+          paymentUrl.searchParams.set('name', data.profile.fullName);
+          paymentUrl.searchParams.set('email', data.profile.email);
+          window.location.href = paymentUrl.toString();
           return;
         }
 

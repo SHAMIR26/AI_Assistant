@@ -139,6 +139,12 @@
     .close-button:hover {
       color: #60a5fa;
     }
+    .nav-link {
+      color: #cbd5e1;
+      text-decoration: none;
+      font-weight: 500;
+      transition: color .18s ease;
+    }
   </style>
 </head>
 <body>
@@ -148,61 +154,21 @@
         <div style="display:flex;align-items:center;gap:10px;"><img src="/liconr-logo.png" alt="LICOASS" style="width:36px;height:36px;border-radius:999px;object-fit:cover;margin-right:8px;" /></div>
         <span class="logo-text">LICOASS</span>
       </a> 
-
-      <div class="header-actions">
-        <button id="index-profile-toggle" class="icon-button" type="button" aria-label="Open profile" title="Profile">
+      <a class="nav-link" href="#features">Features</a>
+      <a class="nav-link" href="#pricing">Pricing</a>
+      <a class="nav-link" href="#top">Home</a>
+    <div class="header-actions">
+        <a id="index-profile-toggle" class="icon-button" href="profile.html" aria-label="Open profile" title="Profile">
           <svg class="icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
             <circle cx="12" cy="7" r="4" />
-          </svg>
-        </button>
-        <a id="index-settings-link" class="icon-button" href="settings.html" aria-label="Open settings" title="Settings">
-          <svg class="icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z" />
-            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z" />
           </svg>
         </a>
       </div>
     </div>
   </nav>
 
-  <div id="index-profile-panel" class="profile-panel hidden" aria-modal="true" role="dialog" aria-labelledby="index-profile-title">
-    <div class="profile-panel-header">
-      <div>
-        <p class="eyebrow">User profile</p>
-        <h2 id="index-profile-title">Registered account details</h2>
-      </div>
-      <button id="index-profile-close" type="button" class="close-button" aria-label="Close profile">×</button>
-    </div>
-    <p style="margin:0 0 -6px;"><a id="index-profile-full-link" href="profile.html" style="color:#60a5fa;text-decoration:none;font-weight:600;font-size:0.92rem;">Open full profile →</a></p>
-
-    <div class="profile-row">
-      <div>
-        <strong>Name</strong>
-        <span id="index-profile-name" class="profile-value">Not available</span>
-      </div>
-      <div>
-        <strong>Mobile Number</strong>
-        <span id="index-profile-mobile" class="profile-value">Not available</span>
-      </div>
-      <div>
-        <strong>Email</strong>
-        <span id="index-profile-email" class="profile-value">Not available</span>
-      </div>
-      <div>
-        <strong>Service</strong>
-        <span id="index-profile-service" class="profile-value">Not available</span>
-      </div>
-    </div>
-
-    <div>
-      <strong>Registered websites</strong>
-      <div id="index-profile-websites" class="profile-links">
-        <p class="profile-value">No registered sites found.</p>
-      </div>
-    </div>
-  </div>
-  <div id="index-panel-overlay" class="panel-overlay hidden" tabindex="-1"></div>
+  
 
   <main id="top">
     <section class="hero" aria-labelledby="hero-title">
@@ -276,7 +242,7 @@
               <button class="price-btn" data-amount="55" data-plan="Mini">Purchase and Get Started</button>
             </div><br>
             <div class="price-actions">
-              <button class="price-btn" data-amount="55" data-plan="Mini">Renew / Update</button>
+              <button class="price-btn" data-amount="55" data-plan="Mini">Renew</button>
             </div>
           </article>
           <article class="price-card featured">
@@ -289,7 +255,7 @@
               <button class="price-btn" data-amount="95" data-plan="Pro">Purchase and Get Started</button>
             </div><br>
             <div class="price-actions">
-              <button class="price-btn" data-amount="95" data-plan="Pro">Renew / Update</button>
+              <button class="price-btn" data-amount="95" data-plan="Pro">Renew</button>
             </div>
           </article>
           <article class="price-card featured">
@@ -302,7 +268,7 @@
               <button class="price-btn" data-amount="155" data-plan="Max">Purchase and Get Started</button>
             </div><br>
             <div class="price-actions">
-              <button class="price-btn" data-amount="155" data-plan="Max">Renew / Update</button>
+              <button class="price-btn" data-amount="155" data-plan="Max">Renew</button>
             </div>
           </article>
         </div>
@@ -310,19 +276,62 @@
     </section>
   </main>
   <script>
+    // Pricing-plan click flow:
+    //  - If this browser has no known LICOASS profile yet, send the person
+    //    to profile.html to create one (name, email, mobile number) first.
+    //  - If a profile already exists, skip straight to payment — no
+    //    interruption on repeat purchases.
     document.querySelectorAll('.price-btn[data-amount]').forEach(function (btn) {
-      btn.addEventListener('click', function () {
+      btn.addEventListener('click', async function () {
         var amount = btn.dataset.amount;
         var plan = btn.dataset.plan || '';
         var text = (btn.textContent || '').toLowerCase();
-        var targetPage = text.includes('renew') ? 'payment.html' : 'profile.html';
-        var url = new URL(targetPage, window.location.href);
-        url.searchParams.set('amount', amount);
-        if (plan) url.searchParams.set('plan', plan);
-        if (!text.includes('renew')) {
-          url.searchParams.set('next', 'payment');
+        var isRenew = text.includes('renew');
+        var knownEmail = window.localStorage.getItem('licoass_profile_email') || '';
+
+        var verifiedProfile = null;
+        if (knownEmail) {
+          try {
+            var res = await fetch('/api/user-profiles?email=' + encodeURIComponent(knownEmail));
+            if (res.ok) {
+              var data = await res.json();
+              verifiedProfile = data.profile || null;
+            }
+          } catch (err) {
+            // network hiccup — fall through and treat as no known profile
+          }
+          if (!verifiedProfile) window.localStorage.removeItem('licoass_profile_email');
         }
-        window.location.href = url.href;
+
+        if (verifiedProfile) {
+          // Profile already on file for this browser — go straight to
+          // checkout, no profile-creation step in the way.
+          var paymentUrl = new URL('payment.html', window.location.href);
+          paymentUrl.searchParams.set('amount', amount);
+          if (plan) paymentUrl.searchParams.set('plan', plan);
+          paymentUrl.searchParams.set('name', verifiedProfile.fullName || '');
+          paymentUrl.searchParams.set('email', verifiedProfile.email || '');
+          window.location.href = paymentUrl.href;
+          return;
+        }
+
+        if (isRenew) {
+          // Renewing without a known profile still just goes to payment;
+          // the payment page collects name/email itself.
+          var renewUrl = new URL('payment.html', window.location.href);
+          renewUrl.searchParams.set('amount', amount);
+          if (plan) renewUrl.searchParams.set('plan', plan);
+          window.location.href = renewUrl.href;
+          return;
+        }
+
+        // No known profile — create one first, then continue to payment
+        // automatically once it's saved.
+        var profileUrl = new URL('profile.html', window.location.href);
+        profileUrl.searchParams.set('amount', amount);
+        if (plan) profileUrl.searchParams.set('plan', plan);
+        profileUrl.searchParams.set('next', 'payment');
+        window.location.href = profileUrl.href;
       });
     });
 
@@ -340,7 +349,7 @@
     const indexUserProfile = {
       fullName: indexUrlParams.get('userName') || indexUrlParams.get('name') || '',
       mobileNumber: indexUrlParams.get('userMobile') || indexUrlParams.get('mobile') || '',
-      email: indexUrlParams.get('userEmail') || indexUrlParams.get('email') || '',
+      email: indexUrlParams.get('userEmail') || indexUrlParams.get('email') || window.localStorage.getItem('licoass_profile_email') || '',
       serviceName: indexUrlParams.get('serviceName') || indexUrlParams.get('service') || '',
       registeredSites: []
     };
