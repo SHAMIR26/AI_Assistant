@@ -476,7 +476,7 @@
         </div>
         <nav class="tab-bar">
           <button type="button" class="tab-btn active">Overview</button>
-          <button type="button" class="tab-btn" id="tab-settings">Settings</button>
+          <button type="button" class="tab-btn" id="tab-settings" title="Coming soon" aria-disabled="true">Settings</button>
         </nav>
       </div>
 
@@ -550,6 +550,7 @@
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" /></svg>
           </div>
           <h1 id="form-title">Set up your profile</h1>
+          <p id="form-subtitle" style="color:var(--text-muted);max-width:480px;margin:0 auto;line-height:1.6;"></p>
           </div>
 
         <div id="form-message" class="form-message" aria-live="polite"></div>
@@ -569,6 +570,7 @@
               <input type="tel" id="mobileNumber" name="mobileNumber" placeholder="+1234567890" required pattern="^\+\d{7,15}$" />
             </label>
           </div>
+          <input type="hidden" id="plan" name="plan" />
           <input type="hidden" id="amount" name="amount" />
           <div class="form-actions">
             <button type="submit" class="btn" id="save-profile-btn">Save profile</button>
@@ -610,7 +612,9 @@
 
     planInput.value = plan;
     amountInput.value = amount;
-    tabSettings.addEventListener('click', () => { window.location.href = 'settings.html'; });
+    // Settings page isn't built yet — keep the tab visible for now but make it a no-op
+    // instead of linking to a page that doesn't exist (was: window.location.href = 'settings.html').
+    tabSettings.addEventListener('click', () => {});
 
     let isEditing = false;
     let currentProfile = null;
